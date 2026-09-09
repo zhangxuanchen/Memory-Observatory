@@ -1,0 +1,87 @@
+[
+  {
+    "event_id": "evt-json-0001",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-01",
+    "operation": "read",
+    "layer": "prompt",
+    "memory_key": "system-prompt.md",
+    "memory_summary": "直接 JSON 导入：加载系统提示词",
+    "token_count": 1200,
+    "latency_ms": 25.0,
+    "timestamp": "2026-09-09 16:00:01",
+    "metadata": {"source": "json-log", "kv_cache_hit": true}
+  },
+  {
+    "event_id": "evt-json-0002",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-01",
+    "operation": "write",
+    "layer": "provider",
+    "memory_key": "mem0:user_profile",
+    "memory_summary": "直接 JSON 导入：写入用户画像记忆",
+    "token_count": 88,
+    "latency_ms": 120.5,
+    "timestamp": "2026-09-09 16:00:05"
+  },
+  {
+    "event_id": "evt-json-0003",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-01",
+    "operation": "read",
+    "layer": "skill",
+    "memory_key": "skill:code-review",
+    "memory_summary": "直接 JSON 导入：调用代码审查技能（慢调用样本 35s）",
+    "token_count": 510,
+    "latency_ms": 35000,
+    "timestamp": "2026-09-09 16:00:20",
+    "metadata": {"skill_version": "1.2"}
+  },
+  {
+    "event_id": "evt-json-0004",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-01",
+    "operation": "update",
+    "layer": "session",
+    "memory_key": "context:compression",
+    "memory_summary": "直接 JSON 导入：上下文压缩 16000 -> 7200 tokens",
+    "token_count": 8800,
+    "latency_ms": 5300,
+    "timestamp": "2026-09-09 16:01:10"
+  },
+  {
+    "event_id": "evt-json-0005",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-01",
+    "operation": "expire",
+    "layer": "provider",
+    "memory_key": "mem0:cleanup:batch-0902",
+    "memory_summary": "直接 JSON 导入：过期清理上周临时记忆 4 条",
+    "token_count": 72,
+    "latency_ms": 46,
+    "timestamp": "2026-09-09 16:01:40"
+  },
+  {
+    "event_id": "evt-json-0006",
+    "agent_id": "demo-import",
+    "session_id": "sess-json-02",
+    "operation": "write",
+    "layer": "session",
+    "memory_key": "session:stage-summary",
+    "memory_summary": "直接 JSON 导入：另一个会话写入阶段总结",
+    "token_count": 230,
+    "latency_ms": 80,
+    "timestamp": "2026-09-09 16:05:00"
+  },
+  {
+    "event_id": "evt-json-0007-bad-row",
+    "agent_id": "demo-import",
+    "operation": "write",
+    "layer": "provider",
+    "memory_key": "intentional:missing-session-id",
+    "memory_summary": "故意缺少 session_id 的坏行，用于验证导入 errors 列表（应显示 row=8 报错）",
+    "token_count": 10,
+    "latency_ms": 5,
+    "timestamp": "2026-09-09 16:06:00"
+  }
+]

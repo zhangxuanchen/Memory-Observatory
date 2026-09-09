@@ -1,6 +1,7 @@
 services:
   postgres:
     image: docker.m.daocloud.io/library/postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: mo
       POSTGRES_USER: mo
@@ -15,9 +16,17 @@ services:
 
   mo-server:
     build: ./mo-server
+    restart: unless-stopped
     # OTLP(4318) 与 REST(8080) 均在容器 8080，两个宿主端口映射同一容器端口
     ports: ["4318:8080", "8080:8080"]
     environment:
+      # 让容器内用户主目录指向宿主机家目录（与下方挂载配合）：
+      # 「选择工作区」文件夹浏览器默认从宿主机家目录（如 /Users/zxc）开始，
+      # ~/.workbench 工作台配置也落在宿主机、容器重建后不丢。
+      HOME: ${HOME:-/root}
+      # JVM 在 Linux 上按 /etc/passwd 解析 user.home（root→/root），不看 HOME，
+      # 必须用 -Duser.home 显式指定，否则文件夹浏览器仍从容器内 /root 开始。
+      JAVA_TOOL_OPTIONS: "-Duser.home=${HOME:-/root}"
       MO_DB_URL: jdbc:postgresql://postgres:5432/mo
       MO_DB_USER: mo
       MO_DB_PASSWORD: mo
@@ -25,14 +34,23 @@ services:
       # 留空为开放模式（仅本地演示）。生产部署务必设置，例如：
       #   export MO_API_KEY=$(openssl rand -hex 24) && ./install.sh
       MO_API_KEY: ${MO_API_KEY:-}
+      # .log 导入的「大模型格式化」需要 DashScope key；留空时该模式会提示未配置，
+      # 可在导入弹窗取消勾选「启用大模型格式化解析」改走 JSON 直传模式。
+      DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
+    volumes:
+      # 宿主机家目录挂载到容器内同路径：文件夹浏览器与工作区 Agent 可直接读写
+      # 宿主机文件（如 ~/Documents 下的项目）。如需浏览其他盘/目录，按同样格式追加，
+      # 例如 - "/Volumes/Data:/Volumes/Data"（宿主路径存在时才加，否则启动报错）。
+      - "${HOME:-/root}:${HOME:-/root}"
 
   mo-dashboard:
     build:
       context: .
       dockerfile: mo-dashboard/Dockerfile
+    restart: unless-stopped  # Docker/开机重启后自动拉起
     # 宿主 5173 -> 容器 443（HTTPS）；自签名证书首次启动自动生成，
     # 生产环境可把正式证书挂载进 mo-certs 卷（tls.crt / tls.key）。
     ports: ["5173:443"]

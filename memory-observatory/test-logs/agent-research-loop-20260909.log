@@ -1,0 +1,37 @@
+========================================================================
+ Agent 运行日志（测试样本 · 异常模式）
+ agent_id   : research-agent
+ session_id : sess-20260909-002
+ task       : 调研「向量数据库选型对比」并产出报告
+ model      : deepseek-chat
+ 日期       : 2026-09-09
+ 说明       : 异常任务流，供问题分析/流程分析验证：
+              - 单 turn 内 web-research 技能被反复调用 7 次（循环/震荡，阈值 5）
+              - 其中 2 次执行失败（status=failed）
+              - 上下文压缩 2 次（压缩过于频繁阈值 2）
+              - 任务末尾集中遗忘 4 批记忆（遗忘风暴，EXPIRE 占比高）
+========================================================================
+
+[2026-09-09 14:02:01.100] [INFO] Agent 启动 | agent_id=research-agent | session_id=sess-20260909-002 | model=deepseek-chat
+[2026-09-09 14:02:01.500] [READ]   [prompt]   加载系统提示词与调研框架 | tokens=1100 | latency=30ms
+[2026-09-09 14:02:02.300] [READ]   [session]  读取历史调研记忆与用户上次结论 | tokens=1200 | latency=55ms
+[2026-09-09 14:02:05.800] [WRITE]  [skill]    加载技能「web-research」v0.9（含搜索/抓取/汇总三步） | tokens=680 | latency=820ms
+[2026-09-09 14:02:10.200] [READ]   [provider] web_search："pgvector vs milvus performance 2026" | tokens=120 | latency=3200ms
+[2026-09-09 14:02:20.900] [READ]   [skill]    调用技能「web-research」#1：汇总检索结果，发现缺少 QPS 维度 | tokens=900 | latency=6400ms
+[2026-09-09 14:02:35.400] [READ]   [provider] web_search："milvus qps benchmark million vectors" | tokens=110 | latency=2900ms
+[2026-09-09 14:02:45.000] [READ]   [skill]    调用技能「web-research」#2：数据仍不足，继续补检索 | tokens=870 | latency=7100ms
+[2026-09-09 14:03:00.300] [READ]   [skill]    调用技能「web-research」#3：输出结论被自检判定缺少成本维度，重来 | tokens=910 | latency=6800ms
+[2026-09-09 14:03:12.700] [READ]   [skill]    调用技能「web-research」#4：目标站点超时 | tokens=0 | latency=12000ms | status=failed | error=ReadTimeout after 12s
+[2026-09-09 14:03:26.500] [READ]   [skill]    调用技能「web-research」#5：重试检索 | tokens=880 | latency=7400ms
+[2026-09-09 14:03:40.100] [READ]   [skill]    调用技能「web-research」#6：解析结果 JSON 格式错误 | tokens=0 | latency=9800ms | status=failed | error=JsonParseException: unexpected token
+[2026-09-09 14:03:55.600] [READ]   [skill]    调用技能「web-research」#7：终于拿到含 QPS/成本/延迟三维度的数据 | tokens=930 | latency=8200ms
+[2026-09-09 14:04:10.200] [UPDATE] [session]  上下文压缩：18600 tokens -> 9200 tokens（压缩率 51%，方法=rolling-summary） | tokens=9400 | latency=6100ms
+[2026-09-09 14:04:20.800] [UPDATE] [session]  上下文再次压缩：9200 tokens -> 5100 tokens（压缩率 45%，仅隔 10s） | tokens=4100 | latency=4700ms
+[2026-09-09 14:04:30.000] [EXPIRE] [provider] 遗忘第 1 批过期网页抓取内容（5 个页面摘要） | tokens=420 | latency=40ms
+[2026-09-09 14:04:35.300] [EXPIRE] [provider] 遗忘第 2 批中间检索结果 | tokens=380 | latency=38ms
+[2026-09-09 14:04:40.700] [EXPIRE] [session]  过期本轮临时思考链草稿 | tokens=260 | latency=29ms
+[2026-09-09 14:04:45.900] [EXPIRE] [provider] mem0 清理第 3 批失效来源（旧版本 benchmark 链接） | tokens=300 | latency=44ms
+[2026-09-09 14:04:50.500] [READ]   [session]  读取任务主线索引，准备写报告 | tokens=540 | latency=38ms
+[2026-09-09 14:05:00.100] [WRITE]  [session]  输出报告框架：pgvector/milvus/qdrant 三维度对比表 + 选型建议 | tokens=480 | latency=150ms
+[2026-09-09 14:05:02.000] [INFO] Agent 任务结束 | 总耗时 181s | 事件 21 条 | 告警：技能循环 7 次 / 失败 2 次 / 压缩 2 次
+========================================================================

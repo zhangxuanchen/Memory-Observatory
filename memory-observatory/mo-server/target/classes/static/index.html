@@ -1592,21 +1592,21 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
   <div class="analysis-grid">
     <!-- 文件夹 .log 批量导入（大模型格式化） -->
     <div class="section-card analysis-full">
-      <div class="section-title"><span data-i18n="import-logsec">文件夹 .log 导入 · 大模型格式化</span></div>
+      <div class="section-title"><span data-i18n="import-logsec">.log 文件批量导入 · 大模型格式化</span></div>
       <div class="logimp-grid">
-        <label class="logimp-drop" for="folderFile">
+        <label class="logimp-drop" for="logFiles">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/><path d="M12 10v6"/><path d="M9 13h6"/></svg>
-          <b data-i18n="import-log-choose">选择文件夹</b>
-          <span id="folderFileName" class="import-fname" data-i18n-default=""></span>
-          <input type="file" id="folderFile" webkitdirectory directory multiple class="import-file" hidden>
+          <b>选择 .log 文件（可批量多选）</b>
+          <span id="logFilesName" class="import-fname">点击后在文件框中框选多个 .log，或 Ctrl/⌘ 逐个点选</span>
+          <input type="file" id="logFiles" accept=".log" multiple class="import-file" hidden>
         </label>
         <div class="logimp-opts">
           <label class="logimp-switch-row" for="folderLlm">
-            <input type="checkbox" id="folderLlm" checked onchange="scanFolder()">
+            <input type="checkbox" id="folderLlm" checked>
             <span class="logimp-switch"></span>
             <span class="logimp-switch-txt">
               <b data-i18n="import-log-llm">启用大模型格式化解析</b>
-              <em data-i18n="import-log-llm-hint">打开后每个 .log 内容交给大模型抽取成 memory_events 再入库</em>
+              <em data-i18n="import-log-llm-hint">打开后每个 .log 内容交给大模型抽取成 memory_events 再入库；关闭则按 JSON 数组直传</em>
             </span>
           </label>
           <button class="btn logimp-scan" id="folderScanBtn" onclick="scanFolder()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg><span data-i18n="import-log-scan">扫描</span></button>
@@ -2343,13 +2343,29 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 <script src="./marked.min.js"></script>
 <script src="./vendor/g6.min.js"></script>
 <script>
-// ============ API Key 鉴权引导 ============
-// 服务端配置 MO_API_KEY 后，/api 与 /v1 请求需携带 Authorization: Bearer <key>。
-// key 保存在 localStorage；收到 401 时弹窗录入，录入后自动重放原请求。
+// ============ 全局 API Key 统一管理 ============
+// - Key 存 localStorage，用于所有 /api、/v1 请求的 Authorization: Bearer 头
+// - 收到 401 且本会话未提示过时，自动弹窗一次；并发 401 共享同一弹窗
+// - 用户关闭后本会话不再自动弹；侧边栏「API Key」入口可随时手动打开维护
 (function(){
   const LS_KEY='mo_api_key';
+  const SESSION_ASKED='mo_apikey_asked';
   const getKey=()=>{ try{return localStorage.getItem(LS_KEY)||'';}catch(e){return '';} };
-  const setKey=k=>{ try{localStorage.setItem(LS_KEY,k||'');}catch(e){} };
+  const setKey=k=>{ try{localStorage.setItem(LS_KEY,k||'');}catch(e){} updateEntry(); };
+  const clearKey=()=>{ try{localStorage.removeItem(LS_KEY);}catch(e){} updateEntry(); };
+
+  // 注入入口/弹窗样式
+  const style=document.createElement('style');
+  style.textContent=
+    'button.nav-item#moApiKeyEntry{width:100%;background:transparent;border:none;text-align:left;font:inherit;line-height:inherit;color:var(--text-secondary)}'+
+    'button.nav-item#moApiKeyEntry:hover{background:#F2F3F5;color:#111}'+
+    '.mo-key-dot{width:8px;height:8px;border-radius:50%;background:#C4C9D0;margin-left:auto;flex:none;transition:background .2s,box-shadow .2s}'+
+    '.mo-key-dot.on{background:#3AA76D;box-shadow:0 0 0 3px rgba(58,167,109,.18)}'+
+    '.mo-ak-status{font-size:11.5px;padding:6px 10px;border-radius:7px;margin-bottom:12px;line-height:1.5}'+
+    '.mo-ak-status.ok{background:#E8F6EE;color:#1B7A4B;border:1px solid #BEE6CF}'+
+    '.mo-ak-status.no{background:#F4F5F7;color:#8A9099;border:1px solid #E5E8EC}';
+  document.head.appendChild(style);
+
   const isApiUrl=(u)=>{
     try{
       const url=(typeof u==='string')?new URL(u,location.origin):(u&&u.url?new URL(u.url,location.origin):null);
@@ -2366,14 +2382,114 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     init.headers=h;
     return [input,init];
   };
+
+  // ---- 弹窗（单例）+ 等待队列：并发 401 共享同一个弹窗 ----
+  let waiters=null; // 弹窗打开期间，所有等待者的 resolve 排队
+  function openModal(){
+    if(waiters) return new Promise(res=>waiters.push(res));
+    waiters=[];
+    buildModal();
+    showModal();
+    return new Promise(res=>waiters.push(res));
+  }
+  function settle(key){
+    const ws=waiters; waiters=null;
+    const mask=document.getElementById('mo-apikey-mask');
+    if(mask) mask.style.display='none';
+    if(ws) ws.forEach(r=>r(key));
+  }
+  function maskKey(k){ return k && k.length>8 ? '••••••••'+k.slice(-4) : (k?'••••':''); }
+
+  function buildModal(){
+    if(document.getElementById('mo-apikey-mask')) return;
+    const mask=document.createElement('div');
+    mask.id='mo-apikey-mask';
+    mask.style.cssText='position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
+    mask.innerHTML='<div style="width:400px;max-width:92vw;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:inherit;">'
+      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
+      +'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2.5 2.5"/></svg>'
+      +'<div style="font-size:15px;font-weight:600;color:#111;">全局 API Key</div></div>'
+      +'<div id="mo-ak-status" class="mo-ak-status no"></div>'
+      +'<div style="font-size:12px;color:#777;margin-bottom:12px;line-height:1.6;">服务端启用了接口鉴权，该 Key 将用于本页面所有数据请求（与 SDK / 上报脚本使用同一个 MO_API_KEY），仅保存在当前浏览器。</div>'
+      +'<input id="mo-apikey-input" type="password" placeholder="输入 MO_API_KEY" autocomplete="off" '
+      +'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:13px;border:1.5px solid #0F6E56;border-radius:8px;outline:none;background:#DFF3EC;color:#0B3B30;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:16px;">'
+      +'<button id="mo-apikey-clear" style="display:none;padding:7px 14px;font-size:12.5px;border:1px solid #E0524A;background:#fff;color:#E0524A;border-radius:8px;cursor:pointer;">清除 Key</button>'
+      +'<div style="flex:1"></div>'
+      +'<button id="mo-apikey-cancel" style="padding:7px 16px;font-size:13px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;">关闭</button>'
+      +'<button id="mo-apikey-ok" style="padding:7px 18px;font-size:13px;border:none;background:#0F6E56;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">保存</button>'
+      +'</div></div>';
+    document.body.appendChild(mask);
+    mask.querySelector('#mo-apikey-ok').onclick=()=>{
+      const v=mask.querySelector('#mo-apikey-input').value.trim();
+      if(!v) return;
+      setKey(v); settle(v);
+    };
+    mask.querySelector('#mo-apikey-clear').onclick=()=>{
+      clearKey(); mask.querySelector('#mo-apikey-input').value='';
+      settle('');
+    };
+    mask.querySelector('#mo-apikey-cancel').onclick=()=>settle('');
+    mask.querySelector('#mo-apikey-input').addEventListener('keydown',e=>{
+      if(e.key==='Enter'){ const v=e.target.value.trim(); if(v){ setKey(v); settle(v);} }
+      if(e.key==='Escape') settle('');
+    });
+  }
+  function showModal(){
+    const mask=document.getElementById('mo-apikey-mask');
+    const k=getKey();
+    const status=mask.querySelector('#mo-ak-status');
+    mask.querySelector('#mo-apikey-clear').style.display=k?'inline-block':'none';
+    if(k){
+      status.className='mo-ak-status ok';
+      status.textContent='当前已配置：'+maskKey(k)+'（保存新值即覆盖）';
+    }else{
+      status.className='mo-ak-status no';
+      status.textContent='当前未配置 API Key，数据请求将返回 401。';
+    }
+    const inp=mask.querySelector('#mo-apikey-input');
+    inp.value=''; inp.placeholder=k?'输入新 Key 覆盖现有配置':'输入 MO_API_KEY';
+    mask.style.display='flex';
+    setTimeout(()=>inp.focus(),30);
+  }
+
+  // ---- 侧边栏入口 ----
+  function updateEntry(){
+    const dot=document.getElementById('moApiKeyDot');
+    const btn=document.getElementById('moApiKeyEntry');
+    if(!dot) return;
+    const k=getKey();
+    dot.classList.toggle('on',!!k);
+    dot.title=k?('已配置：'+maskKey(k)):'未配置';
+    if(btn) btn.title=k?('全局 API Key（已配置 '+maskKey(k)+'）'):'全局 API Key（未配置，点击设置）';
+  }
+  function buildEntry(){
+    const nav=document.querySelector('.sidebar nav.sidebar-nav');
+    if(!nav || document.getElementById('moApiKeyEntry')) return;
+    // 作为菜单最后一个分组放入 nav 内部，自动继承 nav 的 padding，与其他菜单项对齐
+    const group=document.createElement('div');
+    group.innerHTML='<div class="nav-section-label">设置 · Settings</div>'
+      +'<button type="button" class="nav-item" id="moApiKeyEntry">'
+      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2.5 2.5"/></svg>'
+      +'<span>API Key</span><span class="mo-key-dot" id="moApiKeyDot"></span></button>';
+    nav.appendChild(group);
+    group.querySelector('#moApiKeyEntry').onclick=()=>openModal();
+    updateEntry();
+  }
+
+  // ---- fetch 包装：自动带 Key；401 仅自动提示一次 ----
   const _fetch=window.fetch.bind(window);
   window.fetch=function(input,init){
     const [i,n]=withAuth(input,init);
     return _fetch(i,n).then(resp=>{
       if(resp.status===401 && !(init&&init.__moRetried)){
-        return askKey().then(key=>{
-          if(!key) return resp; // 用户取消，原样返回 401
-          setKey(key);
+        // 本会话已自动提示过（用户关闭/取消）→ 静默，不再骚扰；可从侧边栏入口手动设置
+        let asked=false;
+        try{ asked=sessionStorage.getItem(SESSION_ASKED)==='1'; }catch(e){}
+        if(asked) return resp;
+        try{ sessionStorage.setItem(SESSION_ASKED,'1'); }catch(e){}
+        return openModal().then(key=>{
+          if(!key) return resp; // 用户关闭，原样返回 401
           const [i2,n2]=withAuth(input,Object.assign({},init,{__moRetried:true}));
           return _fetch(i2,n2);
         });
@@ -2381,43 +2497,12 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       return resp;
     });
   };
-  // ---- 401 录入弹窗 ----
-  let askResolver=null;
-  function askKey(){
-    return new Promise(resolve=>{
-      askResolver=resolve;
-      let mask=document.getElementById('mo-apikey-mask');
-      if(!mask){
-        mask=document.createElement('div');
-        mask.id='mo-apikey-mask';
-        mask.style.cssText='position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
-        mask.innerHTML='<div style="width:380px;max-width:92vw;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:inherit;">'
-          +'<div style="font-size:15px;font-weight:600;color:#111;margin-bottom:4px;">需要 API Key / API Key Required</div>'
-          +'<div style="font-size:12px;color:#777;margin-bottom:14px;line-height:1.6;">服务端已启用鉴权，请输入部署时设置的 MO_API_KEY（与 SDK / 上报脚本使用同一个）。</div>'
-          +'<input id="mo-apikey-input" type="password" placeholder="MO_API_KEY" autocomplete="off" '
-          +'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:13px;border:1.5px solid #0F6E56;border-radius:8px;outline:none;background:#DFF3EC;color:#0B3B30;">'
-          +'<div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">'
-          +'<button id="mo-apikey-cancel" style="padding:7px 16px;font-size:13px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;">取消</button>'
-          +'<button id="mo-apikey-ok" style="padding:7px 18px;font-size:13px;border:none;background:#0F6E56;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">确定</button>'
-          +'</div></div>';
-        document.body.appendChild(mask);
-        const done=v=>{ mask.style.display='none'; const r=askResolver; askResolver=null; if(r) r(v); };
-        mask.querySelector('#mo-apikey-ok').onclick=()=>{
-          const v=mask.querySelector('#mo-apikey-input').value.trim();
-          if(v) done(v);
-        };
-        mask.querySelector('#mo-apikey-cancel').onclick=()=>done('');
-        mask.querySelector('#mo-apikey-input').addEventListener('keydown',e=>{
-          if(e.key==='Enter'){ const v=e.target.value.trim(); if(v) done(v); }
-          if(e.key==='Escape') done('');
-        });
-      }
-      mask.style.display='flex';
-      const inp=mask.querySelector('#mo-apikey-input');
-      inp.value=getKey();
-      setTimeout(()=>inp.focus(),30);
-    });
-  }
+
+  // 手动打开管理弹窗（侧边栏入口调用）
+  window.moOpenApiKeySettings=()=>openModal();
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',buildEntry);
+  else buildEntry();
 })();
 
 const $=id=>document.getElementById(id);
@@ -2657,7 +2742,7 @@ const I18N={
     'import-choice':'选择文件',
     'import-choice-none':'未选择文件',
     'import-btn':'导入',
-    'import-logsec':'文件夹 .log 导入 · 大模型格式化',
+    'import-logsec':'.log 文件批量导入 · 大模型格式化',
     'import-log-folder':'选择文件夹',
     'import-log-choose':'选择文件夹',
     'import-log-llm':'启用大模型格式化解析',
@@ -6033,13 +6118,13 @@ async function importUpload(){
   }catch(e){ el.innerHTML=`<span class="err">${t('empty-query-fail')(e.message)}</span>`; }
 }
 
-// 文件夹 .log 导入：本地选文件夹 → 逐个 .log 交给后端（可大模型格式化）→ 写入 memory_events
+// .log 文件批量导入：文件框多选 .log → 逐个交给后端（可大模型格式化）→ 写入 memory_events
 (function(){
-  const input=$('folderFile');
+  const input=$('logFiles');
   if(!input) return;
   input.addEventListener('change',()=>{
     const logs=[...input.files].filter(f=>/\.log$/i.test(f.name));
-    const lbl=$('folderFileName');
+    const lbl=$('logFilesName');
     if(lbl) lbl.textContent = logs.length
       ? t('import-log-count').replace('{n}',logs.length)
       : t('import-log-none');
@@ -6049,7 +6134,7 @@ async function importUpload(){
 })();
 async function importFolder(){
   const el=$('importFolderResult');
-  const input=$('folderFile');
+  const input=$('logFiles');
   if(!input||!input.files||!input.files.length){ el.innerHTML=`<span class="err">${t('import-log-choose-first')}</span>`; return; }
   const logs=[...input.files].filter(f=>/\.log$/i.test(f.name));
   if(!logs.length){ el.innerHTML=`<span class="err">${t('import-log-no-log')}</span>`; return; }
@@ -6057,21 +6142,23 @@ async function importFolder(){
   const btn=$('folderImportBtn');
   if(btn) btn.disabled=true;
   const cap=200000;
-  let okFiles=0, sumTotal=0, sumInserted=0, sumSkipped=0, dupCount=0;
-  let firstErr='';
-  el.innerHTML=`<span>${t('import-log-start').replace('{n}',logs.length)}</span>`;
+  let okFiles=0, sumInserted=0, sumSkipped=0, dupCount=0;
+  let firstErr='', doneLines='';
+  const render=(progress)=>{ el.innerHTML=`<span>${progress}</span>${doneLines}`; };
+  render(t('import-log-start').replace('{n}',logs.length));
   for(let i=0;i<logs.length;i++){
     const f=logs[i];
     let content;
-    try{ content=await f.text(); }catch(e){ recordLogErr(el,i,f.name,'read',''); continue; }
+    try{ content=await f.text(); }catch(e){ doneLines+=`<br><span class="err">[${i+1}] ${f.name}: 读取失败</span>`; render(`[${i+1}/${logs.length}] ${f.name} …`); continue; }
     if(content.length>cap) content=content.slice(0,cap)+`\n…(截断至 ${cap} 字符，字段 source_meta=truncated)`;
-    el.innerHTML=`<span>[${i+1}/${logs.length}] ${f.name} …</span>`;
+    render(`[${i+1}/${logs.length}] ${f.name} …`);
     try{
       const r=await fetch('/api/v1/import/logs',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({fileName:f.name,content,llm})});
       const d=await r.json().catch(()=>({}));
       if(!r.ok){
-        recordLogErr(el,i,f.name,'http '+(d.error||r.status),'');
+        doneLines+=`<br><span class="err">[${i+1}/${logs.length}] ${f.name}: http ${d.error||r.status}</span>`;
+        render(`[${i+1}/${logs.length}] ${f.name} …`);
         continue;
       }
       if(d.duplicate){
@@ -6079,21 +6166,23 @@ async function importFolder(){
         const pv=d.previous||{};
         const rawAt=pv.imported_at||pv.importedAt||'';
         const prevAt=rawAt?String(rawAt).slice(0,19).replace('T',' '):'';
-        el.innerHTML+=`<br><span class="ok">[${i+1}/${logs.length}] ${f.name}: ${t('import-log-dup')}${prevAt?`（${t('import-log-dup-prev')} ${prevAt}）`:''}</span>`;
+        doneLines+=`<br><span class="ok">[${i+1}/${logs.length}] ${f.name}: ${t('import-log-dup')}${prevAt?`（${t('import-log-dup-prev')} ${prevAt}）`:''}</span>`;
+        render(`[${i+1}/${logs.length}] ${f.name} …`);
         continue;
       }
       okFiles++;
-      sumTotal+=d.total||0; sumInserted+=d.inserted||0; sumSkipped+=d.skipped||0;
-      let line=`<span class="ok">[${i+1}/${logs.length}] ${f.name}: ${t('import-total')} ${d.total}, ${t('import-inserted')} ${d.inserted}</span>`;
+      sumInserted+=d.inserted||0; sumSkipped+=d.skipped||0;
+      let line=`<span class="ok">[${i+1}/${logs.length}] ${f.name}: ${t('import-total')} ${d.total||0}, ${t('import-inserted')} ${d.inserted||0}</span>`;
       if(d.error) line+=` <span class="err">(${d.error})</span>`;
-      el.innerHTML+=`<br>${line}`;
+      doneLines+=`<br>${line}`;
       if(d.errors&&d.errors.length&&!firstErr) firstErr=d.errors[0].message;
-    }catch(e){ recordLogErr(el,i,f.name,'network',String(e&&e.message||e)); }
+    }catch(e){ doneLines+=`<br><span class="err">[${i+1}/${logs.length}] ${f.name}: 网络错误 — ${String(e&&e.message||e)}</span>`; }
+    render(`[${i+1}/${logs.length}] ${f.name} …`);
   }
-  let h=`<span class="ok">${t('import-log-done')}: ${t('import-log-files')} ${okFiles}/${logs.length}, ${t('import-inserted')} ${sumInserted}, ${t('import-skipped')} ${sumSkipped}</span>`;
+  let h=`<hr><span class="ok">${t('import-log-done')}: ${t('import-log-files')} ${okFiles}/${logs.length}, ${t('import-inserted')} ${sumInserted}, ${t('import-skipped')} ${sumSkipped}</span>`;
   if(dupCount>0) h+=`<br><span class="ok">${t('import-log-dup-n')}: ${dupCount}</span>`;
   if(firstErr) h+=`<br><span class="err">${t('import-log-err-sample')}: ${firstErr}</span>`;
-  el.innerHTML+=`<hr>${h}`;
+  el.innerHTML=doneLines+h;
   if(btn) btn.disabled=false;
 }
 
@@ -6101,7 +6190,7 @@ async function importFolder(){
 function scanFolder(){
   const el=$('importFolderResult');
   if(!el) return;
-  const input=$('folderFile');
+  const input=$('logFiles');
   if(!input||!input.files||!input.files.length){ el.innerHTML=`<span class="err">${t('import-log-choose-first')}</span>`; return; }
   const logs=[...input.files].filter(f=>/\.log$/i.test(f.name));
   if(!logs.length){ el.innerHTML=`<span class="err">${t('import-log-no-log')}</span>`; return; }
@@ -6122,9 +6211,6 @@ function scanFolder(){
   h+=`<br><button class="btn" onclick="importFolder()">${
         llm?t('import-log-confirm-est').replace('{t}',estTokens.toLocaleString()):t('import-log-confirm')}</button>`;
   el.innerHTML=h;
-}
-function recordLogErr(el,i,fname,kind,msg){
-  el.innerHTML+=`<br><span class="err">[${i+1}] ${fname}: ${kind}${msg?' — '+msg:''}</span>`;
 }
 
 // 单条导入（传统 HTTP 接口）：组装 JSON 提交 POST /api/v1/import/single

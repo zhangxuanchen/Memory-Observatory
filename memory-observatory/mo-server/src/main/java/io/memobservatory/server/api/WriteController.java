@@ -200,18 +200,24 @@ public class WriteController {
         String fileName = str(body.get("fileName"));
         String content = str(body.get("content"));
         boolean llm = body.get("llm") == null || Boolean.TRUE.equals(body.get("llm"));
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("fileName", fileName);
-        result.put("llm", llm);
         if (content == null || content.isBlank()) {
             return ResponseEntity.badRequest().body(Map.of("error", "content is required"));
         }
+        return ResponseEntity.ok(processLogContent(fileName, content, llm));
+    }
+
+    /** 单个 .log 内容的完整导入管线：MD5 去重 → (LLM|JSON) 解析 → 校验 → 批量入库 → 指纹记录。 */
+    private Map<String, Object> processLogContent(String fileName, String content, boolean llm) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("fileName", fileName);
+        result.put("llm", llm);
         // MD5 去重：内容一致（MD5 相同）的文件不重复抽取，避免重复消耗大模型 token
         String md5;
         try {
             md5 = md5Hex(content);
         } catch (Exception e) {
-            return ResponseEntity.status(500).body(Map.of("error", "md5 compute failed: " + e.getMessage()));
+            result.put("error", "md5 compute failed: " + e.getMessage());
+            return result;
         }
         result.put("md5", md5);
         Map<String, Object> prev = repo.findImportedLogByMd5(md5);
@@ -226,7 +232,7 @@ public class WriteController {
             result.put("inserted", 0);
             result.put("skipped", 0);
             result.put("errors", List.of());
-            return ResponseEntity.ok(result);
+            return result;
         }
         List<Map<String, Object>> rows;
         try {
@@ -237,7 +243,7 @@ public class WriteController {
             result.put("inserted", 0);
             result.put("skipped", 0);
             result.put("errors", List.of());
-            return ResponseEntity.ok(result);
+            return result;
         }
         List<MemoryEvent> valid = new ArrayList<>();
         List<Map<String, Object>> errors = new ArrayList<>();
@@ -261,7 +267,7 @@ public class WriteController {
         } catch (Exception ignore) {
             // 指纹记录失败不影响本次导入结果
         }
-        return ResponseEntity.ok(result);
+        return result;
     }
 
     /** 文件内容 MD5（十六进制小写）。 */

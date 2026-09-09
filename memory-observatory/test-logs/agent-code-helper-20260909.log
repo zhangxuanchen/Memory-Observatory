@@ -1,0 +1,34 @@
+========================================================================
+ Agent 运行日志（测试样本）
+ agent_id   : code-helper
+ session_id : sess-20260909-001
+ task       : 修复 Dashboard 筛选器胶囊样式问题
+ model      : qwen3-max
+ 日期       : 2026-09-09
+ 说明       : 正常任务流，含 1 次 Skill 慢调用(41s)、1 次上下文压缩、
+              KV Cache 命中、mem0 写入/过期各若干，供大模型格式化抽取测试。
+========================================================================
+
+[2026-09-09 09:30:01.245] [INFO] Agent 启动 | agent_id=code-helper | session_id=sess-20260909-001 | model=qwen3-max
+[2026-09-09 09:30:01.302] [READ]   [prompt]   加载系统提示词 system-prompt.md | tokens=1320 | latency=28ms
+[2026-09-09 09:30:01.410] [READ]   [session]  读取会话历史记忆 session-memory.json | tokens=860 | latency=41ms | kv_cache_prefix_hit=1180 tokens
+[2026-09-09 09:30:02.113] [WRITE]  [provider] mem0 写入长期记忆 user_profile："用户偏好白底绿主题、三档字号 13/12/11px、紧凑布局" | tokens=96 | latency=132ms
+[2026-09-09 09:30:03.050] [READ]   [skill]    检索并加载技能「code-review」v1.2 | tokens=420 | latency=540ms
+[2026-09-09 09:30:04.201] [READ]   [provider] 调用工具 read_file 读取 mo-dashboard/nginx.conf | tokens=380 | latency=95ms
+[2026-09-09 09:30:06.880] [WRITE]  [provider] 调用工具 bash 执行 `grep -rn "logimp" index.html` | tokens=210 | latency=420ms
+[2026-09-09 09:30:09.702] [READ]   [skill]    调用技能「frontend-debug」分析胶囊筛选组 hover/focus 样式 | tokens=560 | latency=3200ms
+[2026-09-09 09:30:14.330] [WRITE]  [session]  写入阶段小结：定位到 .logimp-drop 描边色未与白绿主题联动 | tokens=240 | latency=88ms
+[2026-09-09 09:30:18.900] [WRITE]  [provider] 调用工具 edit_file 修改 static/index.html 胶囊聚焦态（绿描边+柔和光晕） | tokens=300 | latency=310ms
+[2026-09-09 09:30:25.110] [READ]   [provider] 调用工具 web_search 查询 "CSS pill filter focus ring best practice" | tokens=150 | latency=2100ms
+[2026-09-09 09:30:31.500] [READ]   [skill]    调用技能「code-review」复审改动 diff | tokens=480 | latency=41000ms | note=技能内串行调用了 3 次大模型，属慢调用
+[2026-09-09 09:31:15.200] [WRITE]  [session]  更新任务进度：样式修复完成，待容器验证 | tokens=180 | latency=70ms
+[2026-09-09 09:31:20.600] [UPDATE] [session]  上下文压缩：14200 tokens -> 7800 tokens（压缩率 45%，方法=rolling-summary） | tokens=6400 | latency=5200ms
+[2026-09-09 09:31:25.800] [READ]   [session]  读取压缩后上下文摘要继续任务 | tokens=900 | latency=33ms
+[2026-09-09 09:31:30.100] [WRITE]  [provider] 调用工具 bash 执行 `docker compose restart mo-dashboard` 重建前端容器 | tokens=260 | latency=8600ms
+[2026-09-09 09:31:45.700] [EXPIRE] [provider] mem0 过期清理 3 条上周的临时偏好记忆 | tokens=60 | latency=50ms
+[2026-09-09 09:31:50.300] [WRITE]  [provider] mem0 更新记忆 user_profile：追加"筛选器统一使用胶囊组件" | tokens=70 | latency=120ms
+[2026-09-09 09:31:55.900] [READ]   [prompt]   压缩后重新装配系统提示词 | tokens=1300 | latency=26ms | kv_cache_prefix_hit=1300 tokens
+[2026-09-09 09:32:00.400] [READ]   [skill]    调用技能「ui-walkthrough」做视觉走查 | tokens=390 | latency=5200ms
+[2026-09-09 09:32:10.200] [WRITE]  [session]  写入任务完成报告：胶囊筛选组已与白绿主题统一，三胶囊间距一致，聚焦态绿描边生效 | tokens=320 | latency=95ms
+[2026-09-09 09:32:11.000] [INFO] Agent 任务结束 | 总耗时 130s | 事件 20 条
+========================================================================

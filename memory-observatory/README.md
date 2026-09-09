@@ -1,220 +1,132 @@
-# Memory Observatory (MindSprout)
+# Memory Observatory（MindSprout）
 
-> 面向 AI Agent 记忆系统的一体化可观测性与智能工作台平台
+> 面向 AI Agent 记忆系统的一体化可观测性平台与智能工作台：**采集 → 存储 → 观测分析 → 编排运行** 全链路闭环。
 
-Memory Observatory（品牌名 MindSprout）是一套聚焦 AI Agent 记忆系统的开发平台，覆盖「观测—分析—编排」三条链路：
-
-- **记忆可观测**：通过 `mo-sdk` 在 Agent 运行时采集记忆操作事件、上下文快照与质量指标，服务端按 OTLP 接收并落库，Web 端提供事件时间线、Token 分析、Agent / Skill 分析与数据导入看板。
-- **智能工作台**：内置多子 Agent 编排（工作区经理 + 员工），采用 ReAct 工具链（文件、Bash、联网搜索、用户问询、MCP 等），通过 SSE 实时推送进度与思考树，支持将需求拆解为可独立交付的子任务并并行派发、逐步验收。
-- **流程引擎**：角色化工作流（项目经理 / 架构师 / 后端开发 / 前端开发 / 验证工程师 / 修复工程师 / Git 提交，含**门禁验收**），以气泡流形式结构化输出关键节点与验收结论。
-
-## 技术栈
-
-- 后端：Java 17+ / Spring Boot / PostgreSQL（TimescaleDB）· OTLP 接收 + REST API + SSE
-- 前端：单页 Web UI（原生 HTML/CSS/JS，内联 mermaid / marked）
-- 采集：`mo-sdk`（Python，框架无关 + Hermes 拦截器）
-- 编排：工作区式 `.workbench` 目录与 manifest，Agent / Skill 等均可自定义
-
-## 快速开始
-
-```bash
-docker compose up --build -d        # postgres + mo-server + mo-dashboard 三容器
-python examples/otel_demo.py        # 上报演示记忆事件与五区快照
-```
-
-打开 Web 端选择 Agent 即可查看记忆事件与 Token 全景；进入「工作区」可创建多子 Agent、派发任务并实时跟踪编排进度。
-
-> 📐 **数据契约规范**：[MOSpec — Memory Observability Data Specification v0.1](./docs/spec/mospec.md)；更多说明见 [ARCHITECTURE.md](./ARCHITECTURE.md) 与 [`docs/`](./docs)。
+Memory Observatory 在 Agent 运行时旁路采集记忆操作事件（读 / 写 / 更新 / 遗忘）与上下文 Token 快照，按 OpenTelemetry 协议落库，Web 端提供记忆观测、多维分析、数据导入和 Agent 工作台四大功能区；内置多 Agent 编排引擎与角色化工作流，可直接在平台内创建工作区、派发任务、实时跟踪执行过程。
 
 ---
 
-# Memory Observatory SDK (mo-sdk)
+## 功能全景
 
-> Agent 记忆层可观测性平台的 Python SDK
+Web 界面（侧边栏四大功能区）：
 
-mo-sdk 提供了一套轻量的 Python 工具，用于在 Agent 运行时采集记忆操作事件、上下文快照和质量指标，并导出到本地文件或 Observatory 服务端进行分析。
+| 分区 | 页面 | 能力 |
+|---|---|---|
+| **观测** | 总览 | Agent / 事件 / 会话 KPI 概览、问题告警聚合、待办入口 |
+| | 事件详情 | 记忆事件流（操作/层级/Token/延迟）、会话 Turn 时间线、五区 Token 热力图、事件详情抽屉、Trace 链路树 |
+| **分析** | Token 分析 | 分层/操作/会话/时间趋势等 8 维度聚合、延迟分位、Top10 记忆键、五区预算分布 |
+| | Agent 分析 | 多 Agent 横向对比、会话对比、综合评分 |
+| | Skill 分析 | Skill 调用次数 Top10、Skill Token 消耗 Top10、按 Agent 下钻 |
+| | 问题分析 | 慢调用、循环震荡、频繁压缩、失败重试、遗忘风暴等异常模式自动识别与阈值判定 |
+| | 流程分析 | 会话执行流程图（mermaid/G6）、关键路径、问题节点标注与详情滑块 |
+| | 内容风险监测 | 记忆/对话内容风险规则扫描与命中详情 |
+| **数据导入** | 数据导入 | xlsx/json 批量导入（模板下载、行级校验报告）、`.log` 文件批量多选导入（支持大模型格式化抽取）、MCP/Skill 上报接入包下载 |
+| **Agent · Playground** | Agent 对话 | 多子 Agent 工作区（工作区经理 + 员工），ReAct 工具链，SSE 实时气泡流 + 思考树，任务拆解并行派发、逐步验收 |
+| | Skill 管理 | 工作区级 / Agent 级技能的增删改查与下载 |
+| | MCP 管理 | MCP Server 配置、连通性测试、工具列表查看与在线调用 |
 
----
+侧边栏底部提供 **🔑 API Key** 全局设置入口（状态点灰=未配置 / 绿=已配置），统一维护接口鉴权密钥。
 
-## 目录
+**一键部署，开箱即用**：下载完整仓库后，在根目录执行 `./install.sh` 即可自动构建并启动全部服务（PostgreSQL + 后端 + nginx HTTPS 反代），无需手动配置依赖。
 
-- [项目简介](#项目简介)
-- [架构图](#架构图)
-- [快速开始](#快速开始)
-- [API 参考](#api-参考)
-- [Hermes 集成指南](#hermes-集成指南)
-- [核心指标说明](#核心指标说明)
-- [路线图](#路线图)
-
----
-
-## 项目简介
-
-mo-sdk 为 AI Agent 的记忆系统提供统一的可观测性接入层。它支持：
-
-- **四层记忆观测**：Prompt 记忆、会话归档 (Session Archive)、技能 (Skills)、外部记忆提供者 (Memory Providers)
-- **三大事件类型**：Store（存储）、Retrieve（检索）、Forget（遗忘）、Consolidate（整合/压缩）
-- **五区 Token 预算**：实时监控 System / Task / Memory / Tool History / Free 五个区域的 Token 分配
-- **健康评估**：自动评估记忆系统健康状态，生成告警和优化建议
-- **双模式导出**：本地 JSON 文件 + HTTP 推送到服务端
-
-本 SDK 设计为框架无关的核心库 + 框架专用拦截器（Interceptor）的结构，当前已内置 **Hermes Agent** 的完整拦截器实现。
+- 前提：已安装并启动 **Docker Desktop**（含 compose v2）；需在**仓库根目录**运行（脚本依赖同目录的 `docker-compose.yml` 与源码，不能只拷单个脚本）
+- 不设 `MO_API_KEY` 为本地演示的开放模式；设置后启用接口鉴权
+- 启动后浏览器打开 **https://localhost:5173**（自签名证书点"继续"即可）
+- 详细步骤与参数（`--reset` / `--no-cache` 等）见下方 [快速开始](#快速开始)
 
 ---
 
-## 架构图
+## 架构
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Application / Agent                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────────┐   │
-│  │   AIAgent    │  │ Memory Tools │  │ Memory Providers │   │
-│  │  (chat loop) │  │  (add/search)│  │ (mem0/honcho/...)│   │
-│  └──────┬───────┘  └──────┬───────┘  └────────┬─────────┘   │
-│         │                 │                    │             │
-│         ▼                 ▼                    ▼             │
-│  ┌──────────────────────────────────────────────────────┐    │
-│  │         HermesMemoryInterceptor (拦截器层)            │    │
-│  │  ┌──────────┐ ┌───────────┐ ┌─────────────────────┐ │    │
-│  │  │ prompt   │ │ session   │ │ provider operations │ │    │
-│  │  │ memory   │ │ search    │ │ compression / cache │ │    │
-│  │  └────┬─────┘ └─────┬─────┘ └──────────┬──────────┘ │    │
-│  └───────┼──────────────┼──────────────────┼────────────┘    │
-└──────────┼──────────────┼──────────────────┼─────────────────┘
-           │              │                  │
-           ▼              ▼                  ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    MemoryObserver (核心)                     │
-│                                                             │
-│  ┌──────────────────┐   ┌───────────────────────────┐      │
-│  │   Event Buffer   │   │     Snapshot Buffer       │      │
-│  │ (MemoryEvent[])  │   │  (ContextSnapshot[])      │      │
-│  └─────────┬────────┘   └──────────────┬────────────┘      │
-│            │                           │                   │
-│            └─────────────┬─────────────┘                   │
-│                          │                                 │
-│                          ▼                                 │
-│                ┌───────────────────┐                       │
-│                │  MetricsCollector │                       │
-│                │  (实时指标计算)    │                       │
-│                └─────────┬─────────┘                       │
-│                          │                                 │
-│                          ▼                                 │
-│                ┌───────────────────┐                       │
-│                │   Health Report   │                       │
-│                │  (健康评估 + 告警) │                       │
-│                └─────────┬─────────┘                       │
-└──────────────────────────┼─────────────────────────────────┘
-                           │
-                           ▼
-              ┌────────────────────────┐
-              │      Exporters         │
-              │  ┌────────┐ ┌────────┐ │
-              │  │ JSON   │ │ HTTP   │ │
-              │  │ File   │ │ Server │ │
-              │  └────────┘ └────────┘ │
-              └────────────────────────┘
+┌──────────────────────────────────────────────────────────────┐
+│  Agent 进程（Python / Java / 任意语言）                         │
+│  mo_sdk 拦截器 · trae_report_event.py CLI · MCP 上报包          │
+└───────────────┬──────────────────────────────────────────────┘
+                │ OTLP/HTTP JSON（/v1/traces）· REST（/api/v1/events）
+                ▼
+┌──────────────────────────────────────────────────────────────┐
+│  mo-server（Spring Boot 3.4，单进程）                           │
+│  ┌────────────┐  ┌─────────────┐  ┌────────────────────────┐  │
+│  │ OTLP 接收   │→│ IngestQueue │→│ EventRepository        │  │
+│  │ OtlpParser │  │ 有界队列削峰 │  │ 批量写库 + 30+ 查询接口 │  │
+│  └────────────┘  └─────────────┘  └───────────┬────────────┘  │
+│  REST API（观测/分析查询 · 数据导入 · 风险扫描）                 │
+│  Agent 工作台（workbench 多Agent编排 · workflow 角色工作流）     │
+│  工作区管理（workspaces · skills · mcp · 文件浏览）             │
+│  安全：ApiKeyAuthFilter（Bearer 校验）                          │
+└───────────────┬───────────────────────────────┬──────────────┘
+                │ JDBC                           │ /api 反代
+                ▼                                ▼
+┌──────────────────────────┐      ┌──────────────────────────────┐
+│  PostgreSQL 16（持久卷）   │      │  mo-dashboard（nginx）         │
+│  memory_events            │      │  443 TLS（自签/正式证书）       │
+│  memory_snapshots         │      │  80 → 443 跳转 · 静态单页应用   │
+│  import_log_files（去重）  │      │  前端统一从 mo-server static 取 │
+└──────────────────────────┘      └──────────────────────────────┘
 ```
+
+**四层分工**：
+
+| 层 | 目录 | 技术 | 职责 |
+|---|---|---|---|
+| 采集 | `mo_sdk/` `examples/` | Python（零依赖可选） | 拦截记忆操作、归一化为 READ/WRITE/UPDATE/EXPIRE、OTLP 上报 |
+| 服务 | `mo-server/` | Java 17+ / Spring Boot 3.4 | 接收、削峰、落库、查询分析、Agent 编排、工作区管理 |
+| 存储 | docker volume | PostgreSQL 16 | 事件/快照/导入指纹持久化 |
+| 前端 | `mo-server/src/main/resources/static/` | 原生 HTML/CSS/JS（内联 mermaid/marked/G6） | 单页应用，nginx 托管并 HTTPS 反代 |
 
 ---
 
 ## 快速开始
 
-### 环境要求
+### 前置要求
 
-- Python 3.10+
-- 无强制外部依赖（HTTP 导出可选 httpx 以获得更好性能）
+- Docker 20.10+ 且带 docker compose v2 插件（`docker compose version` 可输出）
 
-### 安装
-
-```bash
-# 从源码使用（当前方式）
-cd memory-observatory
-```
-
-### 最小示例
-
-```python
-from mo_sdk import MemoryObserver, MemoryEvent, JSONFileExporter
-
-# 1. 创建观测器
-observer = MemoryObserver(agent_id="my-agent")
-
-# 2. 添加导出器
-observer.add_exporter(JSONFileExporter("./mo_output"))
-
-# 3. 记录记忆事件
-observer.record_event(MemoryEvent(
-    operation="store",
-    layer="prompt",
-    memory_key="MEMORY.md",
-    memory_summary="User preference settings",
-    token_count=1200,
-    latency_ms=5.2,
-    cost_usd=0.0,
-    metadata={"source": "prompt_memory"},
-))
-
-# 4. 获取实时指标
-metrics = observer.get_metrics()
-print(metrics["kv_cache_hit_rate"])
-
-# 5. 手动触发导出
-observer.export()
-```
-
-### 运行 Hermes 插桩演示
+### 一键启动
 
 ```bash
-python hermes_instrumentation.py
+# 本地演示（开放模式，无鉴权）
+./install.sh
+
+# 生产模式（启用 API Key 鉴权）
+export MO_API_KEY=$(openssl rand -hex 24)
+./install.sh
 ```
 
-运行后你将看到：
-- 5 轮模拟对话的记忆操作
-- 实时计算的各项记忆指标
-- 健康检查报告（含告警和优化建议）
-- 导出的 JSON 文件（位于 `mo_output/` 目录）
+脚本自动完成：环境预检 → 构建镜像 → 启动 postgres / mo-server / mo-dashboard → 健康检查轮询 → 输出访问地址。三个容器均配置 `restart: unless-stopped`，Docker/开机重启后自动恢复。
+
+启动后：
+
+| 服务 | 地址 | 说明 |
+|---|---|---|
+| **Web 界面** | https://localhost:5173 | 自签名证书，浏览器提示"不安全"点继续即可 |
+| REST API | http://localhost:8080 | 查询 + 工作台接口 |
+| OTLP 上报 | http://localhost:4318/v1/traces | SDK / 上报脚本入口 |
+
+启用鉴权后，浏览器首次打开会弹窗一次要求输入 API Key（侧边栏「API Key」可随时修改/清除）；SDK 与上报脚本需携带同一个 key。
+
+### 验证一条上报
+
+```bash
+curl -s -X POST http://localhost:8080/api/v1/events \
+  -H 'Content-Type: application/json' \
+  -H "Authorization: Bearer $MO_API_KEY" \   # 开放模式可省略此行
+  -d '{"agentId":"demo-agent","sessionId":"s1","operation":"WRITE",
+       "layer":"prompt","memoryKey":"hello","memorySummary":"安装验证","tokenCount":10}'
+```
+
+刷新 Web 界面，在总览/事件详情选择 `demo-agent` 即可看到。
 
 ---
 
-## 服务端部署（MVP · 开源观测）
+## 数据上报与导入
 
-开源版本地部署，看见记忆操作。详见 [MVP 设计文档](MemoryObservatory_MVP_设计_v1.html)。
+平台提供四种数据接入方式，均可在「数据导入」页操作或下载：
 
-### 一键启动（Docker Compose）
+### 1. Python SDK（mo_sdk）
 
-```bash
-docker compose up --build -d
-```
-
-启动 3 个容器：
-
-| 容器 | 端口 | 作用 |
-|------|------|------|
-| postgres（TimescaleDB） | 5432 | 存储 memory_events / memory_snapshots |
-| mo-server（Spring Boot） | 4318 OTLP / 8080 REST | 接收 OTLP + 查询 API |
-| mo-dashboard（nginx） | 5173 | Web UI |
-
-打开 http://localhost:5173 ，Agent 填 `demo-agent` 即可查看。
-
-> 国内拉取 Docker Hub 镜像较慢时，可在 Docker Desktop 设置中配置镜像加速器（如阿里云个人加速地址）。
-
-### 产生演示数据
-
-```bash
-python examples/otel_demo.py
-# 上报 5 个记忆事件（覆盖 WRITE/READ/UPDATE/EXPIRE）+ 1 个五区快照
-```
-
-### 手动验证（不依赖 Docker）
-
-```bash
-cd mo-server
-mvn package -DskipTests                      # 打包，已验证生成 jar
-java -jar target/mo-server-0.1.0.jar         # 运行（需先启动 PostgreSQL）
-```
-
-### Agent 接入（OTel 导出器）
+框架无关的核心库 + 拦截器，旁路采集、异常不影响主流程：
 
 ```python
 from mo_sdk import MemoryObserver, OTelSpanExporter
@@ -222,257 +134,199 @@ from mo_sdk import MemoryObserver, OTelSpanExporter
 observer = MemoryObserver(agent_id="my-agent")
 observer.add_exporter(OTelSpanExporter(
     endpoint="http://localhost:4318/v1/traces",
+    api_key="<MO_API_KEY>",        # 服务端启用鉴权时必填
     service_name="my-agent",
 ))
-# record_event(...) 之后 observer.export() 即上报
+observer.record_event(...); observer.export()
 ```
 
-属性对齐 OpenTelemetry GenAI 语义约定（OTEP 4959），`memory.operation` / `memory.size_delta` 用标准名，扩展属性用 `memory.*` 命名空间。
+属性对齐 OpenTelemetry GenAI 语义约定（`memory.*` 命名空间）。Hermes 框架可直接用 `hermes_instrumentation.py` 一键猴子补丁插桩。
 
-### REST 查询接口
+### 2. 零依赖 CLI 上报
 
-| 方法 路径 | 说明 |
-|-----------|------|
-| GET `/api/v1/agents/{id}/events` | 事件列表（记忆追踪），支持 session/op/layer/时间筛选 |
-| GET `/api/v1/sessions/{id}/timeline` | 会话时间线（按 layer 分泳道） |
-| GET `/api/v1/agents/{id}/token-stats` | Token 分析（分层/按操作/趋势/五区） |
-| GET `/api/v1/agents/{id}/sessions` | 会话列表（最近活动） |
+`examples/trae_report_event.py`（仅用标准库），适合 Agent 以 RunCommand 方式逐事件上报：
 
-### 架构要点
-
-- 操作归一化在 SDK 侧完成（store/retrieve/forget/consolidate → READ/WRITE/UPDATE/EXPIRE）
-- 服务端 `IngestQueue` 采用旁路容错：内存有界队列 + 后台批量写库，失败只记 WARN 不阻塞
-- OTLP 用 JSON 编码，SDK 零外部依赖（httpx 可选，回退 urllib）
-
----
-
-## API 参考
-
-### MemoryObserver
-
-核心观测器，负责事件收集、指标计算和导出调度。
-
-| 方法 | 说明 |
-|------|------|
-| `record_event(event: MemoryEvent)` | 记录一个记忆操作事件 |
-| `record_snapshot(snapshot: ContextSnapshot)` | 记录一个上下文快照 |
-| `add_exporter(exporter)` | 绑定导出器 |
-| `get_metrics() -> dict` | 获取当前指标汇总 |
-| `export() -> list[str]` | 手动触发导出 |
-| `shutdown()` | 关闭观测器，刷新数据，取消定时器 |
-
-### MemoryEvent
-
-记忆操作事件数据模型。
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `event_id` | str | 事件 UUID |
-| `timestamp` | float | Unix 时间戳 |
-| `agent_id` | str | Agent 标识 |
-| `session_id` | str | 会话 ID |
-| `operation` | str | 操作类型：`store` / `retrieve` / `forget` / `consolidate` |
-| `layer` | str | 记忆层：`L1` / `L2` / `L3` / `prompt` / `session` / `skill` / `provider` |
-| `memory_key` | str | 记忆标识 |
-| `memory_summary` | str | 记忆摘要 |
-| `token_count` | int | 涉及的 Token 数量 |
-| `latency_ms` | float | 操作延迟（毫秒） |
-| `cost_usd` | float | 操作成本（美元） |
-| `metadata` | dict | 扩展元数据 |
-
-### ContextSnapshot
-
-上下文窗口快照，记录五区 Token 预算分布。
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `total_tokens` | int | 总 Token 数 |
-| `system_tokens` | int | System Prompt 区 |
-| `task_tokens` | int | Task Description 区 |
-| `memory_tokens` | int | Memory Retrieval 区 |
-| `tool_history_tokens` | int | Tool History 区 |
-| `free_tokens` | int | Free Space 区 |
-| `compression_count` | int | 累计压缩次数 |
-| `last_compression_ratio` | float | 最近一次压缩比 |
-| `kv_cache_hit` | bool | KV-cache 是否命中 |
-| `kv_cache_prefix_tokens` | int | KV-cache 前缀 Token 数 |
-| `decay_score` | float | 腐烂分数（1.0=新鲜，0.0=陈旧） |
-| `drift_cosine` | float | 漂移余弦相似度 |
-
-### MetricsCollector
-
-指标聚合器，提供：
-- 分层（per-layer）统计摘要
-- 延迟分布分析
-- Token 预算趋势
-- **健康检查** (`run_health_check()`)：自动评估 6 项核心指标的健康状态
-
-### 导出器
-
-| 导出器 | 用途 |
-|--------|------|
-| `JSONFileExporter` | 写入本地 JSON 文件（默认带缩进，便于阅读） |
-| `HTTPExporter` | POST JSON 到 Observatory 服务端（支持 httpx 或 urllib） |
-| `CompositeExporter` | 组合多个导出器，同时写入多个目标 |
-
----
-
-## Hermes 集成指南
-
-### 前置条件
-
-- 已安装 `hermes-agent`（pip 或源码安装均可）
-
-### 集成方式
-
-**方式一：一键安装（推荐）**
-
-在你的启动脚本中，导入 hermes 之前或之后调用 `install_hermes_instrumentation()`：
-
-```python
-from hermes_instrumentation import install_hermes_instrumentation
-
-observer, interceptor = install_hermes_instrumentation(
-    agent_id="my-hermes-agent",
-    output_dir="./mo_output",
-    # http_endpoint="https://observatory.example.com/api/ingest",
-    # http_api_key="your-api-key",
-)
-
-# 然后正常使用 hermes
-from hermes.run_agent import AIAgent
-agent = AIAgent(...)
-agent.chat("Hello")
+```bash
+export MO_API_KEY=<key>            # 启用鉴权时
+python3 examples/trae_report_event.py \
+  --operation WRITE --layer prompt --memory-key MEMORY.md \
+  --summary "读取项目记忆" --token-count 1200 --session-id my-session
+# 经 nginx HTTPS 自签证书上报时加 --insecure 或 MO_INSECURE=1
 ```
 
-**方式二：手动选择性拦截**
+支持 `--trace-id` / `--parent-span-id` / `--meta k=v` 链式构建 Trace。
 
-只需要拦截部分模块时，可以手动调用 interceptor：
+### 3. MCP / Skill 接入包
 
-```python
-from mo_sdk import MemoryObserver, HermesMemoryInterceptor
+「数据导入」页可下载针对各平台（Trae/Cursor/Cline 等）的接入包 zip，内含：`report_mcp_server.py`（stdio MCP Server，暴露 `report_memory_event` 工具）、`skill.md`（技能提示词）、MCP 配置片段与安装 README。目标 Agent 配置环境变量 `MO_SERVER` 与 `MO_API_KEY` 后，每次记忆操作自动上报。
 
-observer = MemoryObserver(agent_id="hermes-agent")
-interceptor = HermesMemoryInterceptor(observer, session_id="session-123")
+### 4. 文件批量导入
 
-# 拦截上下文压缩
-interceptor.intercept_compression(
-    before_tokens=8000,
-    after_tokens=5000,
-    method="summarization",
-)
+| 方式 | 格式 | 说明 |
+|---|---|---|
+| 表格/JSON 导入 | `.xlsx` / `.json` | 页面下载模板填写后上传；行级校验，返回 inserted/skipped/errors 报告；`ON CONFLICT` 幂等 |
+| 文件夹 `.log` 导入 | 一个或多个 `.log` | 文件选择框批量多选 `.log` 上传，MD5 指纹去重；可勾选「大模型格式化解析」（DashScope）把自由文本运行日志抽取为结构化事件；不勾选则按 JSON 数组直传 |
 
-# 拦截会话搜索
-interceptor.intercept_session_search(
-    query="project plan",
-    results=[{"content": "..."}],
-    latency_ms=42.5,
-)
+`test-logs/` 目录提供了三组测试日志（正常流 / 异常循环流 / JSON 直传含坏行），可在导入页框选这些 `.log` 验证效果。
+
+---
+
+## 页面功能导览
+
+- **总览**：Agent、事件、会话等核心 KPI；问题分析告警卡片（红=异常 / 绿=正常）一键跳转。
+- **事件详情**：事件流分页表格，胶囊筛选组（Agent / Session / 时间窗口）；点击事件打开详情抽屉（基本信息、记忆摘要、同 Turn 事件、原始 JSON）；会话时间线按记忆层分泳道；Token 热力图按时间桶展示；Trace 视图渲染 Span 树（关键路径、慢 Span、孤儿 Span、记忆有效性统计）。
+- **Token 分析**：Top 会话、24h 分布、操作×层级矩阵、延迟分位数、Top10 记忆键、读写比率、直方图、日趋势；五区快照（System/Task/Memory/Tool History/Free）预算分布。
+- **Agent 分析**：多 Agent 综合对比（事件量、Token、延迟、失败率）、同 Agent 会话间横向对比。
+- **Skill 分析**：Skill 调用次数 Top10 与 Token 消耗 Top10 卡片，支持全局 / 单 Agent 视角。
+- **问题分析**：基于阈值自动识别慢调用、技能循环震荡、上下文压缩过频、调用失败、遗忘风暴等模式；问题节点详情含时间倒序红点锚点条，点击红点直达事件位置。
+- **流程分析**：把会话重建为流程图（正常 ✅ / 异常 ⚠️ / 恢复 🔄 / 放弃 ❔ 图标标注），问题节点红色高亮，支持 mermaid 与 G6 两种渲染。
+- **内容风险监测**：按规则扫描记忆与对话内容，输出风险命中列表与详情。
+- **Agent 对话（工作台）**：工作区式目录（`.workbench` manifest），经理 Agent 将需求拆解为子任务并行派发给员工 Agent；SSE 流式推送气泡对话与可拖拽/收起的思考树；阶段完成后弹出评审反馈（优点/不足/结论）与产物预览，支持「重新生成」「进入下一阶段」。
+- **Skill / MCP 管理**：技能与 MCP Server 的工作区级/Agent 级 CRUD；MCP 支持连通性测试、工具枚举与在线试调。
+
+---
+
+## 界面预览
+
+### 观测
+
+**总览** — Agent / 事件 / 会话 KPI 与问题告警聚合
+
+![总览](https://github.com/user-attachments/assets/0bc7d2c7-0969-4d4b-aea0-85442a2cdc58)
+
+**事件详情** — 记忆事件流、会话时间线、胶囊筛选与详情抽屉
+
+![事件详情](https://github.com/user-attachments/assets/3c41b7ab-96f3-42e5-934a-16ca83650916)
+
+![事件详情 · Trace 链路与记忆分层](https://github.com/user-attachments/assets/50821800-58a7-4f23-9ed1-ea72f89a36bc)
+
+**记忆层级** — 五层记忆结构与 Token 分布
+
+![记忆层级](https://github.com/user-attachments/assets/4cf0bb32-4510-4e82-8960-4ff9ab61789b)
+
+### 分析
+
+**Token 分析** — 多维度聚合、延迟分位、Top10 记忆键与五区预算
+
+![Token 分析](https://github.com/user-attachments/assets/aef145f7-b04b-4a35-94cf-a6bc4dcff03c)
+
+![Token 分析 · 五区快照与趋势](https://github.com/user-attachments/assets/fb2315af-ea3d-4230-a572-64f7c1ac4710)
+
+**Agent 分析** — 多 Agent 横向对比与综合评分
+
+![Agent 分析](https://github.com/user-attachments/assets/a92257ee-bf21-4869-b433-40d0837d9195)
+
+**Skill 分析** — Skill 调用次数与 Token 消耗 Top10
+
+![Skill 分析](https://github.com/user-attachments/assets/d5ab213b-d806-4731-b380-380d7792b4bf)
+
+**问题分析** — 慢调用 / 循环震荡 / 频繁压缩 / 遗忘风暴自动识别
+
+![问题分析](https://github.com/user-attachments/assets/6079f410-2910-4b5e-8176-5d5d9a90b04c)
+
+![问题分析 · 问题节点详情与红点锚点](https://github.com/user-attachments/assets/1893e8ea-1129-40db-adb5-9ec5cfe5576d)
+
+**流程分析** — 会话执行流程图与关键路径标注
+
+![流程分析](https://github.com/user-attachments/assets/0f3b23ec-f957-42b8-b561-3605eca1f1bd)
+
+![流程分析 · 问题节点高亮](https://github.com/user-attachments/assets/2af2bdb1-a232-49e3-ae76-12b8b6e6f8b6)
+
+**内容风险监测** — 记忆/对话内容风险规则扫描与命中详情
+
+![内容风险监测](https://github.com/user-attachments/assets/36949e7a-8bdd-4bcd-aea2-605e00ce914a)
+
+### 数据导入
+
+**数据导入** — xlsx/json 批量导入、`.log` 文件批量多选导入与接入包下载
+
+![数据导入](https://github.com/user-attachments/assets/e6dff735-62cd-4ac7-b4c6-0f802b70eb17)
+
+### Agent · Playground
+
+**Agent 工作台** — 多子 Agent 工作区、SSE 气泡流与思考树
+
+![工作区](https://github.com/user-attachments/assets/6a7abc51-2755-487c-a558-3575f82bdf8a)
+
+![工作区 · 任务派发与阶段验收](https://github.com/user-attachments/assets/c15d293d-6598-4ff6-bbb3-7d10bb33d0e3)
+
+**Skill 管理** — 工作区级 / Agent 级技能维护
+
+![Skill 管理](https://github.com/user-attachments/assets/a6bbbe86-f7ef-4f54-a94e-195588fa8d63)
+
+---
+
+## 配置与环境变量
+
+| 变量 | 作用于 | 默认 | 说明 |
+|---|---|---|---|
+| `MO_API_KEY` | mo-server | 空 | 设置后 `/api/**`、`/v1/**` 强制 `Authorization: Bearer <key>`；空为开放模式（仅本地演示） |
+| `DASHSCOPE_API_KEY` | mo-server | 空 | `.log` 导入「大模型格式化解析」所需；不配置时该模式不可用 |
+| `MO_DB_URL` / `MO_DB_USER` / `MO_DB_PASSWORD` | mo-server | compose 内已设 | PostgreSQL 连接 |
+| `MO_AGENT_CRYPTO_SECRET` | mo-server | 内置回退 | 工作台 Agent Key 加密密钥（AES），生产建议显式设置 |
+
+**宿主机文件访问（工作台选目录）**：compose 默认把宿主机家目录（`$HOME`）挂载到容器内同路径，并通过 `JAVA_TOOL_OPTIONS=-Duser.home=$HOME` 让「选择工作区」文件夹浏览器默认从宿主机家目录（如 `/Users/zxc`，含 Documents/Desktop 等）开始浏览；工作台配置 `~/.workbench` 也落在宿主机、容器重建不丢。需要让 Agent 访问其他盘/目录时，在 `docker-compose.yml` 的 mo-server `volumes` 中按 `- "/宿主路径:/容器同路径"` 追加（宿主路径必须存在，否则启动报错）。
+
+**TLS 证书**：mo-dashboard 首次启动在 `mo-certs` 卷中自动生成自签名证书（CN=localhost，10 年有效）；生产环境把正式证书挂载为该卷下的 `tls.crt` / `tls.key` 即可，无需改镜像。
+
+> 安全建议：生产部署时安全组仅放行 443 端口，8080/4318/5432 不对公网暴露；上报流量统一经 nginx HTTPS。
+
+---
+
+## 目录结构
+
+```
+memory-observatory/
+├── install.sh                     # 一键安装启动（预检/构建/健康检查/输出指引）
+├── docker-compose.yml             # postgres + mo-server + mo-dashboard 编排
+├── mo_sdk/                        # Python 采集 SDK（core/collector/exporter/interceptors）
+├── examples/
+│   ├── otel_demo.py               # OTLP 上报演示
+│   ├── trae_report_event.py       # 零依赖事件上报 CLI
+│   └── trae_importer.py           # 历史会话日志批量导入
+├── test-logs/                     # .log 导入测试样本
+├── hermes_instrumentation.py      # Hermes 框架一键插桩示例
+├── mo-server/                     # Java 服务端
+│   └── src/main/
+│       ├── java/io/memobservatory/
+│       │   ├── server/            # 观测域：api / receiver / ingest / storage
+│       │   │                      #   model / excel / flow（流程分析）/ risk / security
+│       │   └── agentloop/         # 工作台域：
+│       │       ├── workbench/     #   多 Agent 编排（经理/员工、SSE 对话、思考树）
+│       │       ├── workflow/      #   角色化工作流引擎（门禁验收）
+│       │       └── workspace/     #   工作区/技能/MCP/文件浏览管理
+│       └── resources/
+│           ├── application.yml    # 服务配置
+│           ├── schema.sql         # 建表脚本
+│           └── static/index.html  # 前端单页应用（唯一来源，nginx 与 Spring 共用）
+├── mo-dashboard/                  # nginx 镜像：Dockerfile / nginx.conf(HTTPS反代) / entrypoint.sh
+└── ARCHITECTURE.md                # 分层架构、数据流、Trace 契约、数据库 Schema 详解
 ```
 
-### 拦截点一览
+---
 
-| 拦截点 | 对应 Hermes 模块 | 事件类型 |
-|--------|-----------------|----------|
-| 提示记忆读写 | `prompt_builder` / `memory_tool` | store / retrieve (layer: prompt) |
-| 会话归档搜索 | `session_search` tool | retrieve (layer: session) |
-| 上下文压缩 | `context_compressor` | consolidate (layer: L1) |
-| Prompt 缓存 | `prompt_caching` | retrieve/store (layer: prompt) |
-| 外部 Provider | `base_provider` + 各 Provider 实现 | 各类操作 (layer: provider) |
-| 技能加载/生成 | skills 目录 | store / retrieve (layer: skill) |
-| 每轮对话快照 | `AIAgent.chat()` | ContextSnapshot |
+## 本地开发（不用 Docker）
 
-### Monkey-patch 原理
+```bash
+# 1. 启动 PostgreSQL（或复用 compose 里的 postgres 容器）
+# 2. 运行服务端
+cd mo-server
+mvn -s settings.xml spring-boot:run
+#    http://localhost:8080 提供 API 与前端静态页（热更静态资源可用 scripts/mo-static-sync.sh）
 
-`install_hermes_instrumentation()` 使用 Python 的 `functools.wraps` 对 hermes 的关键方法进行猴子补丁：
-- 不修改 hermes 源码
-- 保留原函数签名和文档
-- 拦截异常不会影响主流程（try/except 保护）
-- 支持热插拔（理论上，实际生产建议启动时安装）
+# 3. 产生演示数据
+python examples/otel_demo.py
+```
+
+常用命令：`docker compose logs -f`（看日志）、`docker compose down`（停止，数据保留）、`./install.sh --reset`（清库重建）。
 
 ---
 
-## 核心指标说明
+## 文档
 
-### 1. KV-cache 命中率
-
-- **含义**：模型推理时 KV-cache 前缀命中的比例
-- **健康范围**：> 50%
-- **低于阈值的影响**：推理速度慢、成本高
-- **优化建议**：优化系统提示结构、保持长对话中的稳定前缀
-
-### 2. 平均压缩频率
-
-- **含义**：每轮对话触发上下文压缩的频率
-- **目标范围**：0.05 - 0.15（约 7-20 轮压缩一次）
-- **过高**：压缩过于频繁，可能丢失重要上下文，导致记忆保真度下降
-- **过低**：压缩不足，上下文膨胀，浪费 Token 预算
-
-### 3. 还原调用率
-
-- **含义**：重新加载之前被驱逐记忆的频率
-- **健康范围**：< 0.1
-- **高的含义**：驱逐策略有问题，"遗忘"的内容很快又需要找回来
-- **优化建议**：提升 L2/L3 容量，改进驱逐算法
-
-### 4. 平均腐烂分数
-
-- **含义**：记忆内容的"新鲜度"评分（1.0 最鲜，0.0 完全陈旧）
-- **健康范围**：> 0.7
-- **过低的影响**：记忆老化严重，可能导致 Agent 基于过时信息做决策
-- **优化建议**：触发 consolidate 操作，刷新和修剪记忆
-
-### 5. 漂移告警率
-
-- **含义**：记忆内容相对于原始上下文的语义漂移比例
-- **健康范围**：< 0.05
-- **高的含义**：压缩/整合过程中信息失真严重
-- **优化建议**：优化压缩算法，减少层级压缩的信息损失
-
-### 6. Session Resume 成功率
-
-- **含义**：恢复历史会话的成功率
-- **健康范围**：> 90%
-- **过低的影响**：用户体验差，跨会话记忆不可靠
-
-### 五区 Token 预算模型
-
-| 区域 | 目标占比 | 说明 |
-|------|---------|------|
-| System | 10% | 系统提示、角色设定、基础指令 |
-| Task | 5% | 当前任务描述、用户目标 |
-| Memory | 15% | 检索到的相关记忆 |
-| Tool History | 40% | 工具调用历史和结果 |
-| Free | 30% | 可用空间（留给推理和回复） |
-
-### 工作记忆三层分区
-
-| 层级 | 名称 | 特点 |
-|------|------|------|
-| L1 | Working Window | 当前上下文窗口，完整保真 |
-| L2 | Summary | 压缩/摘要后的中期记忆 |
-| L3 | Index | 长期记忆索引，按需检索 |
-
----
-
-## 路线图
-
-### v0.2 (Q4 2026)
-- [ ] 更多 Agent 框架拦截器（LangChain、AutoGPT、CrewAI）
-- [ ] SQLite 本地存储（替代纯内存缓冲）
-- [ ] 实时指标计算优化（滑动窗口 + 指数衰减）
-
-### v0.3 (Q1 2027)
-- [ ] 分布式 Agent 追踪支持（OpenTelemetry 兼容）
-- [ ] 记忆演化可视化（记忆生命周期图谱）
-- [ ] 异常检测算法集成（基于历史基线的自动告警）
-
-### v0.4 (Q2 2027)
-- [ ] 记忆质量自动评估（基于下游任务性能反馈）
-- [ ] 记忆策略推荐引擎（根据指标自动建议配置调整）
-- [ ] 多 Agent 记忆交互追踪
-
----
+- [ARCHITECTURE.md](./ARCHITECTURE.md) — 分层架构、数据流、Trace 契约、数据库 Schema 详解
+- [docs/](./docs) — 数据模型 V2 设计（五层架构 / 输入契约 / 集成计划）等
+- 数据契约规范：`docs/spec/mospec.md`（MOSpec v0.1）
 
 ## License
 

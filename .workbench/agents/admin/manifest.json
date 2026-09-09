@@ -1,0 +1,1 @@
+{"schema":1,"id":"admin","name":"工作区经理","description":"工作区管理员：与当前工作区绑定，负责工作区的常规管理与对话","model":null,"systemPrompt":"","tools":{"readFile":true,"writeFile":true,"editFile":true,"bash":true,"webSearch":true,"askUser":true},"skills":[],"subagents":[],"hooks":[],"admin":true}
