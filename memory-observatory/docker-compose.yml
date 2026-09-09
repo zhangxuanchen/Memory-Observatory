@@ -1,0 +1,44 @@
+services:
+  postgres:
+    image: docker.m.daocloud.io/library/postgres:16-alpine
+    environment:
+      POSTGRES_DB: mo
+      POSTGRES_USER: mo
+      POSTGRES_PASSWORD: mo
+    ports: ["5432:5432"]
+    volumes: ["mo-pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mo"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mo-server:
+    build: ./mo-server
+    # OTLP(4318) 与 REST(8080) 均在容器 8080，两个宿主端口映射同一容器端口
+    ports: ["4318:8080", "8080:8080"]
+    environment:
+      MO_DB_URL: jdbc:postgresql://postgres:5432/mo
+      MO_DB_USER: mo
+      MO_DB_PASSWORD: mo
+      # 接口鉴权：设置后 /api/** 与 /v1/** 强制校验 Authorization: Bearer <key>；
+      # 留空为开放模式（仅本地演示）。生产部署务必设置，例如：
+      #   export MO_API_KEY=$(openssl rand -hex 24) && ./install.sh
+      MO_API_KEY: ${MO_API_KEY:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  mo-dashboard:
+    build:
+      context: .
+      dockerfile: mo-dashboard/Dockerfile
+    # 宿主 5173 -> 容器 443（HTTPS）；自签名证书首次启动自动生成，
+    # 生产环境可把正式证书挂载进 mo-certs 卷（tls.crt / tls.key）。
+    ports: ["5173:443"]
+    volumes: ["mo-certs:/etc/nginx/certs"]
+    depends_on: [mo-server]
+
+volumes:
+  mo-pg: {}
+  mo-certs: {}
