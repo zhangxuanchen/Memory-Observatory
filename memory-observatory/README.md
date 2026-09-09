@@ -336,7 +336,8 @@ python examples/otel_demo.py
 - [ARCHITECTURE.md](./ARCHITECTURE.md) — 分层架构、数据流、Trace 契约、数据库 Schema 详解
 - [docs/](./docs) — 数据模型 V2 设计（五层架构 / 输入契约 / 集成计划）等
 - 数据契约规范：`docs/spec/mospec.md`（MOSpec v0.1）
+- [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) — 第三方开源依赖与许可证致谢
 
 ## License
 
-MIT License
+[MIT License](./LICENSE) — 可自由使用、修改、分发与商用，保留版权声明即可。
