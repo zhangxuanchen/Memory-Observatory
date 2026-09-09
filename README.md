@@ -321,6 +321,14 @@ python examples/otel_demo.py
 - [docs/](./docs) — 数据模型 V2 设计（五层架构 / 输入契约 / 集成计划）等
 - 数据契约规范：`docs/spec/mospec.md`（MOSpec v0.1）
 
+---
+
+## 进度
+项目持续优化中，需要Agent制作、定制、答疑请到小红书下留言
+
+44 【Agent 失控、循环 终于有监控面板了 - 深空制造 | 小红书 - 你的生活兴趣社区】 😆 5mt9NdOe15J1hlb 😆 https://www.xiaohongshu.com/discovery/item/6aa10915000000001200107e?source=webshare&xhsshare=pc_web&xsec_token=YB88XVQq4yoK_B2XqmD1DpFh8Rh788CHbFDGyDLNOWy9g=&xsec_source=pc_share
+
+
 ## License
 
 MIT License
