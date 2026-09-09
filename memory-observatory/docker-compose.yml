@@ -4,12 +4,14 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_DB: mo
-      POSTGRES_USER: mo
-      POSTGRES_PASSWORD: mo
-    ports: ["5432:5432"]
+      POSTGRES_USER: ${MO_DB_USER:-mo}
+      # 生产部署请通过环境变量设置强口令：export MO_DB_PASSWORD='强密码'
+      POSTGRES_PASSWORD: ${MO_DB_PASSWORD:-mo}
+    # 仅绑定本机回环：数据库不应对局域网/公网暴露
+    ports: ["127.0.0.1:5432:5432"]
     volumes: ["mo-pg:/var/lib/postgresql/data"]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mo"]
+      test: ["CMD-SHELL", "pg_isready -U ${MO_DB_USER:-mo}"]
       interval: 5s
       timeout: 3s
       retries: 10
@@ -18,22 +20,24 @@ services:
     build: ./mo-server
     restart: unless-stopped
     # OTLP(4318) 与 REST(8080) 均在容器 8080，两个宿主端口映射同一容器端口
-    ports: ["4318:8080", "8080:8080"]
+    ports: ["127.0.0.1:4318:8080", "127.0.0.1:8080:8080"]
     environment:
-      # 让容器内用户主目录指向宿主机家目录（与下方挂载配合）：
-      # 「选择工作区」文件夹浏览器默认从宿主机家目录（如 /Users/zxc）开始，
-      # ~/.workbench 工作台配置也落在宿主机、容器重建后不丢。
-      HOME: ${HOME:-/root}
+      # 容器内用户主目录：与下方挂载配合，「选择工作区」浏览器从挂载点开始，
+      # ~/.workbench 工作台配置落在挂载目录、容器重建后不丢。
+      HOME: ${MO_HOST_MOUNT_DST:-${HOME:-/root}}
       # JVM 在 Linux 上按 /etc/passwd 解析 user.home（root→/root），不看 HOME，
       # 必须用 -Duser.home 显式指定，否则文件夹浏览器仍从容器内 /root 开始。
-      JAVA_TOOL_OPTIONS: "-Duser.home=${HOME:-/root}"
+      JAVA_TOOL_OPTIONS: "-Duser.home=${MO_HOST_MOUNT_DST:-${HOME:-/root}}"
       MO_DB_URL: jdbc:postgresql://postgres:5432/mo
-      MO_DB_USER: mo
-      MO_DB_PASSWORD: mo
+      MO_DB_USER: ${MO_DB_USER:-mo}
+      MO_DB_PASSWORD: ${MO_DB_PASSWORD:-mo}
       # 接口鉴权：设置后 /api/** 与 /v1/** 强制校验 Authorization: Bearer <key>；
       # 留空为开放模式（仅本地演示）。生产部署务必设置，例如：
       #   export MO_API_KEY=$(openssl rand -hex 24) && ./install.sh
       MO_API_KEY: ${MO_API_KEY:-}
+      # Agent AK 落盘加密密钥；留空时首次启动自动生成随机密钥持久化到挂载目录
+      # ~/.workbench/.crypto-secret（0600）。生产环境建议显式设置。
+      MO_AGENT_CRYPTO_SECRET: ${MO_AGENT_CRYPTO_SECRET:-}
       # .log 导入的「大模型格式化」需要 DashScope key；留空时该模式会提示未配置，
       # 可在导入弹窗取消勾选「启用大模型格式化解析」改走 JSON 直传模式。
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
@@ -41,10 +45,12 @@ services:
       postgres:
         condition: service_healthy
     volumes:
-      # 宿主机家目录挂载到容器内同路径：文件夹浏览器与工作区 Agent 可直接读写
-      # 宿主机文件（如 ~/Documents 下的项目）。如需浏览其他盘/目录，按同样格式追加，
-      # 例如 - "/Volumes/Data:/Volumes/Data"（宿主路径存在时才加，否则启动报错）。
-      - "${HOME:-/root}:${HOME:-/root}"
+      # 宿主机目录挂载（隐私注意）：
+      # 默认挂载【整个家目录】，工作台文件浏览器与工作区 Agent 可读写其中全部文件，
+      # 这是本地单机工具的便利性取舍。多用户/生产环境应收窄为指定工作目录，例如：
+      #   export MO_HOST_MOUNT_SRC="$HOME/Documents" MO_HOST_MOUNT_DST="$HOME/Documents"
+      # 容器内将只能访问该目录；不需要文件浏览时可设为空串并删除本行使其完全不挂载。
+      - "${MO_HOST_MOUNT_SRC:-${HOME:-/root}}:${MO_HOST_MOUNT_DST:-${HOME:-/root}}"
 
   mo-dashboard:
     build:

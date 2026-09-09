@@ -262,14 +262,23 @@ python3 examples/trae_report_event.py \
 |---|---|---|---|
 | `MO_API_KEY` | mo-server | 空 | 设置后 `/api/**`、`/v1/**` 强制 `Authorization: Bearer <key>`；空为开放模式（仅本地演示） |
 | `DASHSCOPE_API_KEY` | mo-server | 空 | `.log` 导入「大模型格式化解析」所需；不配置时该模式不可用 |
-| `MO_DB_URL` / `MO_DB_USER` / `MO_DB_PASSWORD` | mo-server | compose 内已设 | PostgreSQL 连接 |
-| `MO_AGENT_CRYPTO_SECRET` | mo-server | 内置回退 | 工作台 Agent Key 加密密钥（AES），生产建议显式设置 |
+| `MO_DB_USER` / `MO_DB_PASSWORD` | postgres + mo-server | `mo` / `mo` | PostgreSQL 账号口令。**生产部署务必设置强口令**：`export MO_DB_PASSWORD='...'` 后再启动（注意：`POSTGRES_PASSWORD` 仅在数据卷首次初始化时生效，改口令需 `./install.sh --reset` 或手动改库） |
+| `MO_AGENT_CRYPTO_SECRET` | mo-server | 自动生成 | 工作台 Agent Key 落盘加密密钥（AES-GCM）。留空时首次启动在挂载目录 `~/.workbench/.crypto-secret`（权限 0600）生成随机密钥并持久化；生产环境建议显式设置以便备份/迁移 |
+| `MO_HOST_MOUNT_SRC` / `MO_HOST_MOUNT_DST` | mo-server 挂载 | `$HOME` / `$HOME` | 工作台可浏览的宿主机目录，见下方隐私说明 |
 
-**宿主机文件访问（工作台选目录）**：compose 默认把宿主机家目录（`$HOME`）挂载到容器内同路径，并通过 `JAVA_TOOL_OPTIONS=-Duser.home=$HOME` 让「选择工作区」文件夹浏览器默认从宿主机家目录（如 `/Users/zxc`，含 Documents/Desktop 等）开始浏览；工作台配置 `~/.workbench` 也落在宿主机、容器重建不丢。需要让 Agent 访问其他盘/目录时，在 `docker-compose.yml` 的 mo-server `volumes` 中按 `- "/宿主路径:/容器同路径"` 追加（宿主路径必须存在，否则启动报错）。
+**宿主机文件访问与隐私边界**：compose 默认把宿主机**整个家目录**（`$HOME`）挂载进容器——工作台文件夹浏览器与工作区 Agent 因此可读写家目录下的全部文件（Documents/Desktop 等），工作台配置 `~/.workbench`（含加密密钥文件 `.crypto-secret`）也落在宿主机、容器重建不丢。这是本地单机工具的便利性取舍；在多用户机器或生产环境应收窄挂载范围，只暴露工作目录：
+
+```bash
+export MO_HOST_MOUNT_SRC="$HOME/Documents"
+export MO_HOST_MOUNT_DST="$HOME/Documents"
+MO_API_KEY="..." docker compose up -d
+```
+
+**端口暴露**：PostgreSQL（5432）与后端直连端口（8080/4318）默认只绑定 `127.0.0.1`，局域网不可见；浏览器统一走 nginx 的 HTTPS 入口 5173。
 
 **TLS 证书**：mo-dashboard 首次启动在 `mo-certs` 卷中自动生成自签名证书（CN=localhost，10 年有效）；生产环境把正式证书挂载为该卷下的 `tls.crt` / `tls.key` 即可，无需改镜像。
 
-> 安全建议：生产部署时安全组仅放行 443 端口，8080/4318/5432 不对公网暴露；上报流量统一经 nginx HTTPS。
+> 安全建议：生产部署时安全组仅放行 443 端口，8080/4318/5432 不对公网暴露；上报流量统一经 nginx HTTPS，并设置 `MO_API_KEY` / `MO_DB_PASSWORD` / `MO_AGENT_CRYPTO_SECRET` 三个密钥。
 
 ---
 

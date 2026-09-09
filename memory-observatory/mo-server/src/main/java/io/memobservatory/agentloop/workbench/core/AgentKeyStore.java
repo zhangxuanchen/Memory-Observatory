@@ -31,7 +31,8 @@ import java.util.Map;
 
 /**
  * 加密密钥库：绑定 AK 到 Agent，密文落盘 $ROOT/.workbench/agents/{agentId}/keys.json。
- * 密钥由环境变量 MO_AGENT_CRYPTO_SECRET 派生（缺省用内置常量），AES/GCM 加密。
+ * 密钥由环境变量 MO_AGENT_CRYPTO_SECRET 派生；未设置时首次启动生成随机密钥并持久化到
+ * ~/.workbench/.crypto-secret（0600），不使用任何硬编码常量。AES/GCM 加密。
  */
 public class AgentKeyStore {
 
@@ -154,32 +155,85 @@ public class AgentKeyStore {
             return ENC_PREFIX + Base64.getEncoder().encodeToString(iv) + "."
                     + Base64.getEncoder().encodeToString(ct);
         } catch (Exception e) {
-            log.warn("AK 加密失败: {}", e.toString());
-            return ENC_PREFIX + Base64.getEncoder().encodeToString(plain.getBytes(StandardCharsets.UTF_8));
+            // 绝不降级为明文（含 base64）落盘：直接失败，让上层报错
+            throw new IllegalStateException("AK 加密失败，已阻止明文落盘", e);
         }
     }
 
+    /**
+     * 解密。三种情况：
+     * - 无 enc: 前缀（历史明文存储）→ 原样返回；
+     * - enc: 前缀且认证成功 → 返回明文；
+     * - enc: 前缀但解密失败（密钥轮换/损坏，GCM 认证不过）→ 返回 null，
+     *   调用方据此回落全局默认 AK，避免把密文误当 key 使用。
+     */
     private static String decrypt(String token) {
+        if (token == null) return null;
+        if (!token.startsWith(ENC_PREFIX)) return token; // 历史明文
         try {
-            if (token != null && token.startsWith(ENC_PREFIX)) token = token.substring(ENC_PREFIX.length());
-            int dot = token.indexOf('.');
-            if (dot <= 0) return token; // 非预期格式，原样返回
-            byte[] iv = Base64.getDecoder().decode(token.substring(0, dot));
-            byte[] ct = Base64.getDecoder().decode(token.substring(dot + 1));
+            String body = token.substring(ENC_PREFIX.length());
+            int dot = body.indexOf('.');
+            if (dot <= 0) return null;
+            byte[] iv = Base64.getDecoder().decode(body.substring(0, dot));
+            byte[] ct = Base64.getDecoder().decode(body.substring(dot + 1));
             Cipher c = Cipher.getInstance("AES/GCM/NoPadding");
             c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(AES_KEY, "AES"),
                     new GCMParameterSpec(128, iv));
             return new String(c.doFinal(ct), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            return token; // 解密失败回退原文，避免损坏回传
+            log.warn("Agent AK 密文解密失败（密钥已轮换或文件损坏），该绑定将回落全局默认 AK；"
+                    + "如需继续使用专属 key，请在工作台重新绑定。");
+            return null;
         }
     }
 
+    /**
+     * 派生 AES 密钥，优先级：
+     * 1. 环境变量 MO_AGENT_CRYPTO_SECRET（生产推荐，显式可控）；
+     * 2. 首次启动随机生成 32 字节密钥，持久化到 ~/.workbench/.crypto-secret（权限 0600），
+     *    容器重建后仍可解密已落盘的 AK（该目录随宿主机家目录挂载持久化）；
+     * 3. 持久化失败（如只读文件系统）时退化为「每次启动随机」的临时密钥：服务可用，
+     *    但重启后历史密文无法解密，会回落全局 AK——仅降级，不使用任何硬编码常量。
+     */
     private static byte[] deriveKey() {
         String secret = System.getenv("MO_AGENT_CRYPTO_SECRET");
-        if (secret == null || secret.isBlank()) secret = "mo-agent-ak-v1";
+        if (secret != null && !secret.isBlank()) {
+            return sha256(secret);
+        }
         try {
-            return MessageDigest.getInstance("SHA-256").digest(secret.getBytes(StandardCharsets.UTF_8));
+            Path dir = Path.of(System.getProperty("user.home", "."), ".workbench");
+            Files.createDirectories(dir);
+            Path secretFile = dir.resolve(".crypto-secret");
+            if (Files.exists(secretFile)) {
+                String saved = Files.readString(secretFile, StandardCharsets.UTF_8).trim();
+                if (!saved.isBlank()) return sha256(saved);
+            }
+            byte[] raw = new byte[32];
+            new SecureRandom().nextBytes(raw);
+            String generated = Base64.getUrlEncoder().withoutPadding().encodeToString(raw);
+            Files.writeString(secretFile, generated, StandardCharsets.UTF_8);
+            try {
+                Files.setPosixFilePermissions(secretFile,
+                        java.util.Set.of(java.nio.file.attribute.PosixFilePermission.OWNER_READ,
+                                java.nio.file.attribute.PosixFilePermission.OWNER_WRITE));
+            } catch (UnsupportedOperationException ignore) {
+                // 非 POSIX 文件系统（如 Windows）无法设置权限位，跳过
+            }
+            log.warn("[AgentKeyStore] 未设置 MO_AGENT_CRYPTO_SECRET，已在 {} 生成随机密钥（权限 0600）；"
+                    + "生产环境建议显式设置 MO_AGENT_CRYPTO_SECRET", secretFile);
+            return sha256(generated);
+        } catch (Exception e) {
+            byte[] raw = new byte[32];
+            new SecureRandom().nextBytes(raw);
+            log.warn("[AgentKeyStore] 无法持久化加密密钥（{}），本次启动使用临时随机密钥；"
+                    + "重启后已保存的 Agent AK 密文将无法解密，请设置 MO_AGENT_CRYPTO_SECRET", e.toString());
+            return sha256(Base64.getUrlEncoder().withoutPadding().encodeToString(raw));
+        }
+    }
+
+    private static byte[] sha256(String s) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(s.getBytes(StandardCharsets.UTF_8));
         } catch (Exception e) {
             throw new IllegalStateException("密钥派生失败", e);
         }
