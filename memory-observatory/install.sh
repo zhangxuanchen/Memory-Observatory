@@ -39,7 +39,8 @@ MemoryObservatory 一键安装并启动
 
 鉴权:
   首次运行自动生成随机访问密钥并持久化到 .env（docker compose 自动加载，无需手动配置）；
-  浏览器首次访问时在「访问密钥」弹窗填入同一值（仅一次）。
+  本机浏览器打开 https://localhost:5173 已由 nginx 自动注入该密钥，零配置；
+  从其他设备/客户端访问或脚本上报时使用同一密钥（侧边栏「访问密钥」可查看/填写）。
   开放模式：在 .env 中将 MO_API_KEY 置空；显式 export 的环境变量优先于 .env。
 
 常见命令:
@@ -90,14 +91,22 @@ if [ ! -f "$ENV_FILE" ]; then
   GEN_KEY="$(openssl rand -hex 24 2>/dev/null || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
   cat > "$ENV_FILE" <<EOF
 # MemoryObservatory 本地配置（docker compose 自动加载；已被 .gitignore 排除，不会提交）
-# 接口鉴权密钥：浏览器首次访问时在「访问密钥」弹窗填入同一值；上报脚本/SDK 用同一值
+# 接口鉴权密钥：本机浏览器由 nginx 自动注入；其他设备/客户端与上报脚本/SDK 用同一值
+# 置空（MO_API_KEY=）为开放模式，仅适合本地演示
 MO_API_KEY=${GEN_KEY}
 
-# 数据库口令（默认 mo，生产建议改为强口令后取消注释）
+# 数据库口令（默认 mo，生产建议改为强口令）
 # MO_DB_PASSWORD=change-me
 
-# .log 大模型格式化用（留空则该模式提示未配置，可改走 JSON 直传）
+# .log 大模型格式化与 Agent 对话用（留空则该模式提示未配置，可改走 JSON 直传）
+# 也可在工作区侧边栏「模型密钥」中配置（界面配置加密落盘，优先于本环境变量）
 # DASHSCOPE_API_KEY=
+
+# 收窄宿主机挂载（默认挂载整个家目录，见 docker-compose.yml 注释）
+# MO_HOST_MOUNT_SRC=/Users/you/Documents
+# MO_HOST_MOUNT_DST=/Users/you/Documents
+
+# 配置详解见同目录 ENV.md
 EOF
   info "首次运行：已自动生成配置文件 .env（含随机访问密钥）"
   KEY_SOURCE=".env（自动生成）"
@@ -164,7 +173,7 @@ fi
 echo -e "  ${BOLD}REST 查询${NC}  http://localhost:8080/api/v1/agents"
 echo -e "  ${BOLD}OTLP 上报${NC}  http://localhost:4318/v1/traces   /   REST 上报 POST ${BOLD}/api/v1/events${NC}"
 if [ -n "${MO_API_KEY:-}" ]; then
-echo -e "  ${BOLD}访问密钥${NC}  已启用：浏览器首次打开页面时在「访问密钥」弹窗填入下面这行（仅此一次）："
+echo -e "  ${BOLD}访问密钥${NC}  已启用：本机浏览器已由 nginx 自动注入，无需填写；其他设备/客户端使用下面这行："
 echo -e "            ${BOLD}${MO_API_KEY}${NC}"
 echo -e "            （持久化于 $ENV_FILE 文件，可随时用文本编辑器查看/更换；上报脚本用 --api-key 或 export MO_API_KEY）"
 fi
