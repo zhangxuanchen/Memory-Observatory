@@ -7,7 +7,9 @@ FROM docker.m.daocloud.io/library/nginx:alpine
 # openssl 用于 entrypoint 首次启动时生成自签名证书
 RUN apk add --no-cache openssl
 
-COPY mo-dashboard/nginx.conf /etc/nginx/conf.d/default.conf
+# nginx 配置模板：官方镜像启动时自动 envsubst 替换其中的 ${MO_API_KEY}，
+# 输出到 /etc/nginx/conf.d/default.conf（实现本机零配置鉴权注入）
+COPY mo-dashboard/nginx.conf /etc/nginx/templates/default.conf.template
 COPY mo-dashboard/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

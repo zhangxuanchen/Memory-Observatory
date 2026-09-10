@@ -69,7 +69,8 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 .nav-item:hover{background:#F2F3F5;color:#111111}
 .nav-item.active{background:#EFEFF1;color:#111111;font-weight:600}
 .nav-item.active::before{content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);width:3px;height:16px;background:#1A1A1A;border-radius:2px}
-.nav-item svg{flex-shrink:0;opacity:.7}
+.nav-item svg{flex-shrink:0;opacity:.7;transition:opacity .15s}
+.nav-item:hover svg{opacity:1}
 .nav-item.active svg{opacity:1}
 .sidebar-footer{padding:14px 16px;border-top:1px solid var(--border-glass-light);font-size:10px;color:var(--text-dim);text-align:center}
 
@@ -997,6 +998,8 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
   background:transparent;border:1px solid var(--border-glass);border-radius:6px;transition:all .15s}
 .modal-ops button:hover{border-color:var(--color-primary);color:var(--color-primary)}
 .modal-ops button:disabled{opacity:.4;cursor:default}
+.modal-ops button.folder-toggle-btn{margin-left:auto}
+.modal-ops button.folder-toggle-btn.active{background:var(--color-primary);border-color:var(--color-primary);color:#fff}
 .modal-list{flex:1;min-height:0;overflow:auto;padding:4px 8px;margin:0 8px 8px;
   border:1px solid var(--border-glass);border-radius:8px;background:transparent}
 .folder-row{display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:12px;cursor:pointer;
@@ -1111,6 +1114,15 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     <div class="nav-item" data-page="mcp-manage" tabindex="0">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4a2 2 0 012-2h8a2 2 0 012 2v3a2 2 0 01-2 2H4a2 2 0 01-2-2V4z"/><path d="M8 9v3M5.5 14l2.5-2 2.5 2"/></svg>
       <span data-i18n="nav-mcp-manage">MCP 管理</span>
+    </div>
+    <div class="nav-section-label" data-i18n="nav-settings">设置 · Settings</div>
+    <div class="nav-item" id="moApiKeyEntry" tabindex="0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="5.5" cy="10.5" r="2.8"/><path d="M7.7 8.3 12.5 3.5"/><path d="m10.6 5.4 1.9 1.9"/></svg>
+      <span data-i18n="nav-access-key">访问密钥</span><span class="mo-key-dot" id="moApiKeyDot"></span>
+    </div>
+    <div class="nav-item" id="moModelKeyEntry" tabindex="0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="4.5" width="7" height="7" rx="1.2"/><rect x="6.8" y="6.8" width="2.4" height="2.4"/><path d="M6 1.5v3M10 1.5v3M6 11.5v3M10 11.5v3M1.5 6h3M1.5 10h3M11.5 6h3M11.5 10h3"/></svg>
+      <span data-i18n="nav-model-key">模型密钥</span><span class="mo-key-dot" id="moModelKeyDot"></span>
     </div>
   </nav>
   <div class="sidebar-footer">v0.1.0 · Open Source</div>
@@ -2056,6 +2068,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
   <div class="modal-ops">
     <button onclick="folderHome()">⌂ 主目录</button>
     <button onclick="folderUp()" id="folderUpBtn">← 上级</button>
+    <button onclick="folderToggleHidden()" id="folderHiddenBtn" class="folder-toggle-btn" title="切换是否显示 . 开头的系统/工具目录">👁 显示隐藏项目</button>
   </div>
   <div id="folderList" class="modal-list"></div>
   <div class="modal-foot">
@@ -2361,6 +2374,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     'button.nav-item#moApiKeyEntry:hover{background:#F2F3F5;color:#111}'+
     '.mo-key-dot{width:8px;height:8px;border-radius:50%;background:#C4C9D0;margin-left:auto;flex:none;transition:background .2s,box-shadow .2s}'+
     '.mo-key-dot.on{background:#3AA76D;box-shadow:0 0 0 3px rgba(58,167,109,.18)}'+
+    '.mo-key-dot.part{background:#E0A63A;box-shadow:0 0 0 3px rgba(224,166,58,.18)}'+
     '.mo-ak-status{font-size:11.5px;padding:6px 10px;border-radius:7px;margin-bottom:12px;line-height:1.5}'+
     '.mo-ak-status.ok{background:#E8F6EE;color:#1B7A4B;border:1px solid #BEE6CF}'+
     '.mo-ak-status.no{background:#F4F5F7;color:#8A9099;border:1px solid #E5E8EC}';
@@ -2406,13 +2420,13 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     mask.id='mo-apikey-mask';
     mask.style.cssText='position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
     mask.innerHTML='<div style="width:400px;max-width:92vw;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:inherit;">'
-      +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">'
-      +'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2.5 2.5"/></svg>'
-      +'<div style="font-size:15px;font-weight:600;color:#111;">全局 API Key</div></div>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
+      +'<span style="width:28px;height:28px;border-radius:8px;background:#E3F2EA;color:#1B7A4B;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2.5 2.5"/></svg></span>'
+      +'<div style="font-size:15px;font-weight:600;color:#111;">全局访问密钥（Access Key）</div></div>'
       +'<div id="mo-ak-status" class="mo-ak-status no"></div>'
-      +'<div style="font-size:12px;color:#777;margin-bottom:12px;line-height:1.6;">服务端启用了接口鉴权，该 Key 将用于本页面所有数据请求（与 SDK / 上报脚本使用同一个 MO_API_KEY），仅保存在当前浏览器。</div>'
+      +'<div style="font-size:12px;color:#777;margin-bottom:12px;line-height:1.6;">这是<b>本系统的接口访问口令</b>（相当于登录密码，防止他人通过端口访问你的文件与数据），<b>不是大模型 AK</b>——调用 DashScope/Qwen 等模型不需要也不使用它。该密钥用于本页面所有数据请求（与 SDK / 上报脚本使用同一个 MO_API_KEY），仅保存在当前浏览器。</div>'
       +'<input id="mo-apikey-input" type="password" placeholder="输入 MO_API_KEY" autocomplete="off" '
-      +'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:13px;border:1.5px solid #0F6E56;border-radius:8px;outline:none;background:#DFF3EC;color:#0B3B30;">'
+      +'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:13px;border:1.5px solid #d5d9de;border-radius:8px;outline:none;background:#fff;color:#111;transition:border-color .15s;">'
       +'<div style="display:flex;align-items:center;gap:10px;margin-top:16px;">'
       +'<button id="mo-apikey-clear" style="display:none;padding:7px 14px;font-size:12.5px;border:1px solid #E0524A;background:#fff;color:#E0524A;border-radius:8px;cursor:pointer;">清除 Key</button>'
       +'<div style="flex:1"></div>'
@@ -2420,6 +2434,9 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       +'<button id="mo-apikey-ok" style="padding:7px 18px;font-size:13px;border:none;background:#0F6E56;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">保存</button>'
       +'</div></div>';
     document.body.appendChild(mask);
+    const akInp=mask.querySelector('#mo-apikey-input');
+    akInp.addEventListener('focus',()=>akInp.style.borderColor='#0F6E56');
+    akInp.addEventListener('blur',()=>akInp.style.borderColor='#d5d9de');
     mask.querySelector('#mo-apikey-ok').onclick=()=>{
       const v=mask.querySelector('#mo-apikey-input').value.trim();
       if(!v) return;
@@ -2443,9 +2460,12 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     if(k){
       status.className='mo-ak-status ok';
       status.textContent='当前已配置：'+maskKey(k)+'（保存新值即覆盖）';
+    }else if(window.__moAutoPass){
+      status.className='mo-ak-status ok';
+      status.textContent='本机访问已自动放行，无需配置（nginx 已注入 .env 中的 MO_API_KEY）。仅在从其他设备/客户端访问本系统时，才需要在此输入该密钥。';
     }else{
       status.className='mo-ak-status no';
-      status.textContent='当前未配置 API Key，数据请求将返回 401。';
+      status.textContent='当前未配置访问密钥，数据请求将返回 401。';
     }
     const inp=mask.querySelector('#mo-apikey-input');
     inp.value=''; inp.placeholder=k?'输入新 Key 覆盖现有配置':'输入 MO_API_KEY';
@@ -2459,22 +2479,48 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     const btn=document.getElementById('moApiKeyEntry');
     if(!dot) return;
     const k=getKey();
-    dot.classList.toggle('on',!!k);
-    dot.title=k?('已配置：'+maskKey(k)):'未配置';
-    if(btn) btn.title=k?('全局 API Key（已配置 '+maskKey(k)+'）'):'全局 API Key（未配置，点击设置）';
+    const auto=!k&&!!window.__moAutoPass; // 浏览器未存 key，但本机请求已被 nginx 自动放行
+    dot.classList.toggle('on',!!k||auto);
+    dot.title=k?('已配置：'+maskKey(k)):(auto?'本机访问已自动放行，无需配置':'未配置');
+    if(btn) btn.title=k?('全局访问密钥（已配置 '+maskKey(k)+'）')
+      :(auto?'全局访问密钥：本机访问已自动放行（nginx 注入 .env 中的 MO_API_KEY），无需配置；从其他设备/客户端访问时才需手动输入'
+      :'全局访问密钥（未配置，点击设置）');
+  }
+  // 模型密钥菜单项状态点：两家全配=绿、配了一半=琥珀、未配=灰；title 展示各 provider 掩码详情
+  function updateModelKeyEntry(s){
+    const dot=document.getElementById('moModelKeyDot');
+    const btn=document.getElementById('moModelKeyEntry');
+    if(!dot) return;
+    const ds=s&&s.dashscope&&s.dashscope.masked;
+    const oa=s&&s.openai&&s.openai.masked;
+    dot.classList.toggle('on',!!(ds&&oa));
+    dot.classList.toggle('part',!!(ds?!oa:!!oa));
+    const f=(n,label)=>(!n||!n.masked)?(label+'：未配置'):(label+'：'+n.masked+'（'+(n.source==='ui'?'界面配置':'环境变量')+'）');
+    if(btn) btn.title='大模型 API Key（全局默认）：供工作区经理、未绑定 AK 的 Agent 与 .log 大模型格式化使用\n'+f(s&&s.dashscope,'DashScope')+'\n'+f(s&&s.openai,'OpenAI 兼容');
+  }
+  async function loadGlobalStatus(){
+    try{
+      const r=await fetch('/api/agent/keys/global',{credentials:'same-origin'});
+      if(!r.ok) return null;
+      return await r.json();
+    }catch(e){ return null; }
   }
   function buildEntry(){
-    const nav=document.querySelector('.sidebar nav.sidebar-nav');
-    if(!nav || document.getElementById('moApiKeyEntry')) return;
-    // 作为菜单最后一个分组放入 nav 内部，自动继承 nav 的 padding，与其他菜单项对齐
-    const group=document.createElement('div');
-    group.innerHTML='<div class="nav-section-label">设置 · Settings</div>'
-      +'<button type="button" class="nav-item" id="moApiKeyEntry">'
-      +'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="7.5" cy="15.5" r="4.5"/><path d="m10.5 12.5 8-8"/><path d="m16 7 3 3"/><path d="m18.5 4.5 2.5 2.5"/></svg>'
-      +'<span>API Key</span><span class="mo-key-dot" id="moApiKeyDot"></span></button>';
-    nav.appendChild(group);
-    group.querySelector('#moApiKeyEntry').onclick=()=>openModal();
+    // 设置分组已写入静态 HTML（与其他菜单完全同构：div.nav-item + 16 网格图标 + data-i18n），
+    // 这里只负责绑定行为与状态点刷新
+    const apiKeyEntry=document.getElementById('moApiKeyEntry');
+    const modelKeyEntry=document.getElementById('moModelKeyEntry');
+    if(!apiKeyEntry || apiKeyEntry.dataset.moBound) return;
+    apiKeyEntry.dataset.moBound='1';
+    apiKeyEntry.onclick=()=>openModal();
+    modelKeyEntry.onclick=()=>openModelKeyModal();
     updateEntry();
+    // 探测一次：请求成功且浏览器未存 key → 本机访问已被 nginx 自动放行（注入 .env 的 MO_API_KEY）
+    loadGlobalStatus().then(s=>{
+      window.__moAutoPass=!!(s&&!getKey());
+      updateModelKeyEntry(s);
+      updateEntry();
+    });
   }
 
   // ---- fetch 包装：自动带 Key；401 仅自动提示一次 ----
@@ -2500,6 +2546,117 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 
   // 手动打开管理弹窗（侧边栏入口调用）
   window.moOpenApiKeySettings=()=>openModal();
+
+  // ============ 大模型 API Key（全局默认）管理 ============
+  // - 工作区侧边栏「模型密钥」入口：配置全局默认模型 AK（DashScope / OpenAI 兼容）
+  // - 供所有未单独绑定 AK 的 Agent（含内置「工作区经理」）与「.log 大模型格式化」使用
+  // - 界面配置经服务端 AES-GCM 加密落盘 ~/.workbench/model-keys.json，优先于 .env 环境变量
+  function buildModelKeyModal(){
+    if(document.getElementById('mo-modelkey-mask')) return;
+    const mask=document.createElement('div');
+    mask.id='mo-modelkey-mask';
+    mask.style.cssText='position:fixed;inset:0;z-index:99999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);';
+    mask.innerHTML='<div style="width:460px;max-width:92vw;background:#fff;border-radius:12px;padding:22px 24px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:inherit;">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">'
+      +'<span style="width:28px;height:28px;border-radius:8px;background:#E8F0FE;color:#0A5BD3;display:flex;align-items:center;justify-content:center;flex:none;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="14" height="14" rx="2"/><rect x="9.5" y="9.5" width="5" height="5"/><path d="M9 2v3M15 2v3M9 19v3M15 19v3M2 9h3M2 15h3M19 9h3M19 15h3"/></svg></span>'
+      +'<div style="font-size:15px;font-weight:600;color:#111;">大模型 API Key（全局默认）</div></div>'
+      +'<div style="font-size:12px;color:#777;margin-bottom:14px;line-height:1.6;">调用大模型用的 AK（与「访问密钥」无关）。所有未单独绑定 API Key 的 Agent（含内置<b>工作区经理</b>）与「.log 大模型格式化」都用它。界面配置<b>加密保存在本机</b>（AES-GCM）并优先于 .env 环境变量，保存后立即生效。</div>'
+      +mkRow('ds','DashScope API Key（Qwen）')
+      +'<div style="height:12px"></div>'
+      +mkRow('oa','OpenAI 兼容 API Key（DeepSeek / GLM）')
+      +'<div id="mo-mk-msg" style="font-size:12px;margin-top:10px;min-height:16px;line-height:1.5;"></div>'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-top:6px;">'
+      +'<div style="flex:1"></div>'
+      +'<button id="mo-mk-cancel" style="padding:7px 16px;font-size:13px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer;">关闭</button>'
+      +'<button id="mo-mk-save" style="padding:7px 18px;font-size:13px;border:none;background:#0F6E56;color:#fff;border-radius:8px;cursor:pointer;font-weight:600;">保存</button>'
+      +'</div></div>';
+    document.body.appendChild(mask);
+    mask.querySelector('#mo-mk-cancel').onclick=()=>{ mask.style.display='none'; };
+    mask.querySelector('#mo-mk-save').onclick=()=>saveModelKeys();
+    mask.querySelector('#mo-mk-ds-val').onclick=()=>validateModelKey('ds');
+    mask.querySelector('#mo-mk-oa-val').onclick=()=>validateModelKey('oa');
+    mask.querySelector('#mo-mk-ds-clear').onclick=()=>clearModelKey('ds');
+    mask.querySelector('#mo-mk-oa-clear').onclick=()=>clearModelKey('oa');
+  }
+  function mkRow(p,label){
+    return '<div>'
+      +'<label style="display:block;font-size:12px;color:#555;margin-bottom:5px;">'+label+'</label>'
+      +'<div id="mo-mk-'+p+'-status" class="mo-ak-status no" style="margin-bottom:8px;"></div>'
+      +'<div style="display:flex;gap:8px;align-items:center;">'
+      +'<input id="mo-mk-'+p+'-input" type="password" autocomplete="off" placeholder="" '
+      +'style="flex:1;min-width:0;box-sizing:border-box;padding:8px 11px;font-size:13px;border:1.5px solid #d5d9de;border-radius:8px;outline:none;">'
+      +'<button id="mo-mk-'+p+'-val" style="padding:7px 12px;font-size:12px;border:1px solid #0F6E56;background:#fff;color:#0F6E56;border-radius:8px;cursor:pointer;flex:none;">校验</button>'
+      +'<button id="mo-mk-'+p+'-clear" style="display:none;padding:7px 12px;font-size:12px;border:1px solid #E0524A;background:#fff;color:#E0524A;border-radius:8px;cursor:pointer;flex:none;">清除</button>'
+      +'</div></div>';
+  }
+  function moMkMsg(t,bad){ const el=document.getElementById('mo-mk-msg'); if(el){ el.style.color=bad?'#C4402F':'#1B7A4B'; el.textContent=t||''; } }
+  async function refreshModelKeyStatus(){
+    const s=await loadGlobalStatus();
+    if(!s){ moMkMsg('加载状态失败（请检查访问密钥是否有效）',true); return; }
+    setMkRow('ds',s.dashscope); setMkRow('oa',s.openai);
+    updateModelKeyEntry(s);
+    moMkMsg('');
+  }
+  function setMkRow(p,node){
+    const mask=document.getElementById('mo-modelkey-mask'); if(!mask) return;
+    const st=mask.querySelector('#mo-mk-'+p+'-status');
+    const inp=mask.querySelector('#mo-mk-'+p+'-input');
+    const clr=mask.querySelector('#mo-mk-'+p+'-clear');
+    inp.value='';
+    if(node&&node.masked){
+      st.className='mo-ak-status ok';
+      st.textContent='已配置 '+node.masked+'（来源：'+(node.source==='ui'?'界面配置':'环境变量')+'）';
+      clr.style.display=node.source==='ui'?'inline-block':'none';
+      inp.placeholder='输入新 Key 覆盖（留空则不修改）';
+    }else{
+      st.className='mo-ak-status no';
+      st.textContent='未配置';
+      clr.style.display='none';
+      inp.placeholder='输入 API Key（留空则不修改）';
+    }
+  }
+  function putModelKey(provider,key){
+    return fetch('/api/agent/keys/global',{method:'PUT',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:provider,apiKey:key})}
+    ).then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); });
+  }
+  async function saveModelKeys(){
+    const mask=document.getElementById('mo-modelkey-mask'); if(!mask) return;
+    const jobs=[];
+    ['ds','oa'].forEach(p=>{
+      const v=mask.querySelector('#mo-mk-'+p+'-input').value.trim();
+      if(v) jobs.push(putModelKey(p==='ds'?'dashscope':'openai',v));
+    });
+    if(!jobs.length){ moMkMsg('没有要保存的新 Key（输入框留空表示不修改）',true); return; }
+    moMkMsg('保存中…');
+    try{ await Promise.all(jobs); moMkMsg('已保存，立即生效'); await refreshModelKeyStatus(); }
+    catch(e){ moMkMsg('保存失败：'+e,true); }
+  }
+  async function clearModelKey(p){
+    moMkMsg('清除中…');
+    try{ await putModelKey(p==='ds'?'dashscope':'openai',''); moMkMsg('已清除，回落 .env 环境变量'); await refreshModelKeyStatus(); }
+    catch(e){ moMkMsg('清除失败：'+e,true); }
+  }
+  async function validateModelKey(p){
+    const mask=document.getElementById('mo-modelkey-mask'); if(!mask) return;
+    const v=mask.querySelector('#mo-mk-'+p+'-input').value.trim();
+    if(!v){ moMkMsg('请先在输入框输入要校验的 Key',true); return; }
+    moMkMsg('校验中（向模型发一条 ping，约数秒）…');
+    try{
+      const r=await fetch('/api/agent/keys/validate',{method:'POST',credentials:'same-origin',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:p==='ds'?'dashscope':'openai',apiKey:v})});
+      const s=await r.json();
+      moMkMsg((s.ok?'校验通过：':'校验失败：')+(s.message||''),!s.ok);
+    }catch(e){ moMkMsg('校验失败：'+e,true); }
+  }
+  function openModelKeyModal(){
+    buildModelKeyModal();
+    const mask=document.getElementById('mo-modelkey-mask');
+    moMkMsg('');
+    mask.style.display='flex';
+    refreshModelKeyStatus();
+  }
+  window.moOpenModelKeySettings=openModelKeyModal;
 
   if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',buildEntry);
   else buildEntry();
@@ -2671,6 +2828,9 @@ const I18N={
     'nav-agent':'工作区',
     'nav-agent-entry':'工作区',
     'nav-mcp-manage':'MCP 管理',
+    'nav-settings':'设置 · Settings',
+    'nav-access-key':'访问密钥',
+    'nav-model-key':'模型密钥',
     'page-mcp-manage':'MCP 管理',
     'mcp-client-title':'MCP Server 接入（Client）',
     'mcp-client-desc':'把外部 MCP server（Streamable HTTP）接入为本平台的工具源；在技能的工具授权里勾选后，Agent 装配时即可像内置工具一样直接调用。',
@@ -3062,6 +3222,9 @@ const I18N={
     'nav-agent':'Workspace',
     'nav-agent-entry':'Workspace',
     'nav-mcp-manage':'MCP Management',
+    'nav-settings':'Settings',
+    'nav-access-key':'Access Key',
+    'nav-model-key':'Model Keys',
     'page-mcp-manage':'MCP Management',
     'mcp-client-title':'MCP Server Access (Client)',
     'mcp-client-desc':'Connect external MCP servers (Streamable HTTP) as tool sources for this platform. Enable them in a skill\'s tool authorization and Agents can call them like built-in tools.',
@@ -3347,6 +3510,8 @@ function tab(name,btn){
   else if(name==='risk') loadRisk();
   else if(name==='agent'){
     agentPoll();
+    // 页面从隐藏变为可见后容器高度才定型，补滚到底部，让初始化直接定位到最后一条消息
+    setTimeout(agentScrollChatBottom,0);
   }
   else if(name==='skill-manage'){
     skillReload();
@@ -3524,7 +3689,7 @@ function agentOpenAgent(agentId){
   const live=agentLive[agentId];
   if(live && live.root && !live.root.isConnected){
     agentChat.appendChild(live.root);
-    agentChat.scrollTop=agentChat.scrollHeight;
+    agentScrollChatBottom();
   }
   agentRenderSessions();
   // 异步从后端记忆补齐该 Agent 会话：经理经 run_worker 派发的「工作指令 ↔ 汇报」
@@ -4569,6 +4734,18 @@ function agentBubbleHtml(contentHtml, ts){
   const c=agentFmtClock(ts);
   return (c?`<span class="am-time">${c}</span>`:'')+contentHtml;
 }
+// 会话栏滚动到底：立即滚一次，布局稳定后再补滚（图片/markdown 异步内容会改变高度），
+// 图片加载完成后再次补滚，保证初始化时直接定位到最后一条消息。
+function agentScrollChatBottom(){
+  const el=agentChat; if(!el) return;
+  const scroll=()=>{ el.scrollTop=el.scrollHeight; };
+  scroll();
+  requestAnimationFrame(scroll);
+  requestAnimationFrame(()=>requestAnimationFrame(scroll));  // 双帧后高度稳定（图片加载前）
+  el.querySelectorAll('img').forEach(img=>{
+    if(!img.complete) img.addEventListener('load',scroll,{once:true});
+  });
+}
 function agentRenderChat(session){
   // 会话以 Agent 为单位：当前对话的 sessionId = 当前激活 Agent id
   const sid=agentActiveAgent();
@@ -4590,7 +4767,7 @@ function agentRenderChat(session){
   const firstUser=session.messages.find(m=>m.role==='user'
       && typeof m.text==='string' && m.text.trim()!=='' && m.text.indexOf('[object Object]')<0);
   $('agentConvTitle').textContent=(firstUser?firstUser.text.replace(/\s+/g,' ').trim().slice(0,20)+'…':'')||t('agent-conv-title');
-  agentChat.scrollTop=agentChat.scrollHeight;
+  agentScrollChatBottom();
 }
 
 // 从后端记忆补齐某 Agent 会话的历史气泡：经理经 run_worker 派发的「工作指令 ↔ 汇报」
@@ -4757,8 +4934,10 @@ async function agentCreateAgent(wid,name,des,skills){
 
 // ---- 选择工作区文件夹弹框（服务端目录浏览） ----
 let fCur=null, fParent=null;        // 当前目录 / 其父目录
+let fShowHidden=false;              // 是否显示 . 开头的隐藏目录（默认隐藏，避免主目录被工具目录淹没）
 function folderOpen(){ $('folderMask').style.display='block'; $('folderModal').style.display='flex'; folderBrowse(''); }
 function folderClose(){ $('folderMask').style.display='none'; $('folderModal').style.display='none'; }
+function folderToggleHidden(){ fShowHidden=!fShowHidden; folderBrowse(fCur||''); }
 // 按当前完整路径渲染可点击的层级面包屑，点击任意一级直接跳转
 function buildCrumb(path){
   const c=$('folderCrumb'); c.innerHTML='';
@@ -4780,18 +4959,36 @@ async function folderBrowse(path){
   listEl.innerHTML='<div class="empty">加载中…</div>';
   $('folderUpBtn').disabled=true;
   try{
-    const b=await fetch('/api/agent/fs/browse?path='+encodeURIComponent(path),{credentials:'same-origin'}).then(r=>r.json());
+    const resp=await fetch('/api/agent/fs/browse?path='+encodeURIComponent(path),{credentials:'same-origin'});
+    if(resp.status===401){
+      // 访问密钥未配置/无效：明确提示（注明非大模型 AK）并给出一键配置入口，而不是静默空列表
+      listEl.innerHTML='<div class="empty">未配置<b>访问密钥</b>或密钥无效（401），无法读取目录。<br>'
+        +'<span style="font-size:11.5px;color:#888;">访问密钥是本系统的接口口令（MO_API_KEY），非大模型 AK，读本地文件不调用任何模型。</span><br>'
+        +'<button type="button" class="btn" style="margin-top:8px" onclick="window.moOpenApiKeySettings&&window.moOpenApiKeySettings().then(function(k){ if(k) folderBrowse(fCur||\'\'); })">配置访问密钥</button></div>';
+      return;
+    }
+    const b=await resp.json();
+    if(!resp.ok){ listEl.innerHTML='<div class="empty">'+(b&&b.error?('读取失败：'+b.error):('读取失败（HTTP '+resp.status+'）'))+'</div>'; return; }
+    if(!Array.isArray(b.dirs)){ listEl.innerHTML='<div class="empty">目录数据格式异常</div>'; return; }
     fCur=b.current; fParent=b.parent;
     $('folderPath').value=fCur;
     buildCrumb(fCur);
     $('folderUpBtn').disabled=!fParent;
+    // 隐藏目录开关按钮态
+    const hb=$('folderHiddenBtn');
+    if(hb){ hb.classList.toggle('active',fShowHidden); hb.textContent=fShowHidden?'🙈 隐藏项目：开':'👁 显示隐藏项目'; }
     listEl.innerHTML='';
-    if(!b.dirs.length){ listEl.innerHTML='<div class="empty">（此文件夹下没有子目录）</div>'; return; }
-    b.dirs.forEach(d=>{
+    const dirs=fShowHidden?b.dirs:b.dirs.filter(d=>!d.name.startsWith('.'));
+    if(!dirs.length){
+      listEl.innerHTML='<div class="empty">'+(b.dirs.length?'（没有可显示的子目录；点「显示隐藏项目」查看 . 开头目录）':'（此文件夹下没有子目录）')+'</div>';
+      return;
+    }
+    dirs.forEach(d=>{
       const row=document.createElement('div');
       row.className='folder-row';
       row.onclick=()=>folderBrowse(d.path);
-      row.innerHTML='<span class="fd-ico">&#128193;</span><span class="fd-name">'+d.name+'</span>';
+      row.innerHTML='<span class="fd-ico">&#128193;</span><span class="fd-name"></span>';
+      row.querySelector('.fd-name').textContent=d.name;
       listEl.appendChild(row);
     });
   }catch(e){

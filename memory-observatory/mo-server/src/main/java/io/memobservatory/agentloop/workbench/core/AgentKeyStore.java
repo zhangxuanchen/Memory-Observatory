@@ -134,17 +134,17 @@ public class AgentKeyStore {
         return out;
     }
 
-    /** 掩码：保留首 4 与尾 4，中段用 •••• 代替；过短则整体掩码。 */
-    private static String mask(String s) {
+    /** 掩码：保留首 4 与尾 4，中段用 •••• 代替；过短则整体掩码。（包内可见，供 GlobalKeyStore 复用） */
+    static String mask(String s) {
         if (s == null) return null;
         if (s.isBlank()) return null;
         if (s.length() <= 8) return "••••••••";
         return s.substring(0, 4) + "••••" + s.substring(s.length() - 4);
     }
 
-    // ---------------- AES/GCM 加解密 ----------------
+    // ---------------- AES/GCM 加解密（包内可见，供 GlobalKeyStore 复用） ----------------
 
-    private static String encrypt(String plain) {
+    static String encrypt(String plain) {
         try {
             byte[] iv = new byte[12];
             SR.nextBytes(iv);
@@ -167,7 +167,7 @@ public class AgentKeyStore {
      * - enc: 前缀但解密失败（密钥轮换/损坏，GCM 认证不过）→ 返回 null，
      *   调用方据此回落全局默认 AK，避免把密文误当 key 使用。
      */
-    private static String decrypt(String token) {
+    static String decrypt(String token) {
         if (token == null) return null;
         if (!token.startsWith(ENC_PREFIX)) return token; // 历史明文
         try {

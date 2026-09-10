@@ -57,9 +57,13 @@ services:
       context: .
       dockerfile: mo-dashboard/Dockerfile
     restart: unless-stopped  # Docker/开机重启后自动拉起
-    # 宿主 5173 -> 容器 443（HTTPS）；自签名证书首次启动自动生成，
-    # 生产环境可把正式证书挂载进 mo-certs 卷（tls.crt / tls.key）。
-    ports: ["5173:443"]
+    # 仅绑定本机回环：工作台可读写家目录文件，不对局域网/公网暴露；
+    # 远程访问需自行改绑定并评估风险（届时 nginx 的自动注入也会对该入口生效）。
+    ports: ["127.0.0.1:5173:443"]
+    environment:
+      # 传给 nginx 启动模板：浏览器请求未携带 Authorization 时注入该 key，
+      # 本机打开 https://localhost:5173 零配置可用；手动携带的 key 原样透传。
+      MO_API_KEY: ${MO_API_KEY:-}
     volumes: ["mo-certs:/etc/nginx/certs"]
     depends_on: [mo-server]
 

@@ -38,8 +38,9 @@ MemoryObservatory 一键安装并启动
              http://localhost:8080 (REST 查询 + OTLP 4318 上报)
 
 鉴权:
-  导出环境变量 MO_API_KEY 后运行本脚本即启用接口鉴权（/api、/v1 需 Bearer 头）；
-  不设置则为开放模式，仅限本地演示。
+  首次运行自动生成随机访问密钥并持久化到 .env（docker compose 自动加载，无需手动配置）；
+  浏览器首次访问时在「访问密钥」弹窗填入同一值（仅一次）。
+  开放模式：在 .env 中将 MO_API_KEY 置空；显式 export 的环境变量优先于 .env。
 
 常见命令:
   查看状态   docker compose ps
@@ -80,12 +81,39 @@ done
 
 info "Docker 环境: $(docker --version) | Compose: $(docker compose version --short)"
 
+# -------- 0.4 访问密钥（MO_API_KEY）自动配置 --------
+# 首次运行自动生成随机密钥并持久化到 .env（docker compose 自动加载），之后启动零配置；
+# .env 已被 .gitignore 排除不会进仓库；显式 export 的环境变量优先级高于 .env。
+ENV_FILE=".env"
+KEY_SOURCE=""
+if [ ! -f "$ENV_FILE" ]; then
+  GEN_KEY="$(openssl rand -hex 24 2>/dev/null || head -c 24 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  cat > "$ENV_FILE" <<EOF
+# MemoryObservatory 本地配置（docker compose 自动加载；已被 .gitignore 排除，不会提交）
+# 接口鉴权密钥：浏览器首次访问时在「访问密钥」弹窗填入同一值；上报脚本/SDK 用同一值
+MO_API_KEY=${GEN_KEY}
+
+# 数据库口令（默认 mo，生产建议改为强口令后取消注释）
+# MO_DB_PASSWORD=change-me
+
+# .log 大模型格式化用（留空则该模式提示未配置，可改走 JSON 直传）
+# DASHSCOPE_API_KEY=
+EOF
+  info "首次运行：已自动生成配置文件 .env（含随机访问密钥）"
+  KEY_SOURCE=".env（自动生成）"
+elif grep -qE '^MO_API_KEY=..*' "$ENV_FILE" 2>/dev/null; then
+  KEY_SOURCE=".env"
+fi
+# 读取 .env 中的 MO_API_KEY（未显式 export 时生效）
+if [ -z "${MO_API_KEY:-}" ] && [ -f "$ENV_FILE" ]; then
+  MO_API_KEY="$(grep -E '^MO_API_KEY=' "$ENV_FILE" | head -1 | cut -d= -f2- | tr -d '\"'"'"'"')"
+fi
+
 # -------- 0.5 鉴权状态提示 --------
-if [ -z "${MO_API_KEY:-}" ]; then
-  warn "未设置 MO_API_KEY：接口鉴权关闭（仅适合本地演示）。"
-  warn "生产部署请先执行： export MO_API_KEY=\$(openssl rand -hex 24)  然后重新运行本脚本。"
+if [ -n "${MO_API_KEY:-}" ]; then
+  info "接口鉴权已启用（密钥来自 ${KEY_SOURCE:-环境变量}）：/api 与 /v1 需 Bearer 头。"
 else
-  info "已检测到 MO_API_KEY：/api 与 /v1 上报接口将强制鉴权（Dashboard 首次访问会弹窗录入同一个 key）。"
+  warn "MO_API_KEY 为空：接口鉴权关闭（开放模式，仅适合本地演示）。"
 fi
 
 # -------- 1. （可选）清空旧数据 --------
@@ -98,11 +126,14 @@ fi
 info "开始一键安装并启动 MemoryObservatory (postgres + mo-server + mo-dashboard) ..."
 docker compose up -d $COMPOSE_BUILD
 
-# -------- 3. 等待后端就绪 --------
+# -------- 3. 等待后端就绪（鉴权开启时探测带 Bearer 头，401 也视为已就绪） --------
 info "等待后端 (mo-server @ :8080) 就绪 ..."
 BACKEND_OK=0
 for i in $(seq 1 90); do
-  if curl -sf --max-time 2 "http://localhost:8080/api/v1/agents" >/dev/null 2>&1; then
+  code=$(curl -s -o /dev/null --max-time 2 \
+    ${MO_API_KEY:+-H "Authorization: Bearer $MO_API_KEY"} \
+    -w "%{http_code}" "http://localhost:8080/api/v1/agents" 2>/dev/null || echo 000)
+  if [ "$code" = "200" ] || [ "$code" = "401" ]; then
     BACKEND_OK=1; break
   fi
   sleep 2
@@ -133,8 +164,9 @@ fi
 echo -e "  ${BOLD}REST 查询${NC}  http://localhost:8080/api/v1/agents"
 echo -e "  ${BOLD}OTLP 上报${NC}  http://localhost:4318/v1/traces   /   REST 上报 POST ${BOLD}/api/v1/events${NC}"
 if [ -n "${MO_API_KEY:-}" ]; then
-echo -e "  ${BOLD}鉴权${NC}      已启用：浏览器打开 Dashboard 后在弹窗输入 MO_API_KEY；"
-echo -e "                上报脚本/SDK 需设置同一 key（MO_API_KEY 环境变量或 Authorization: Bearer 头）。"
+echo -e "  ${BOLD}访问密钥${NC}  已启用：浏览器首次打开页面时在「访问密钥」弹窗填入下面这行（仅此一次）："
+echo -e "            ${BOLD}${MO_API_KEY}${NC}"
+echo -e "            （持久化于 $ENV_FILE 文件，可随时用文本编辑器查看/更换；上报脚本用 --api-key 或 export MO_API_KEY）"
 fi
 echo
 echo -e "  ${BOLD}验证上报一条事件${NC}（可选，刷新页面即可在 事件详情 看到 demo-agent）："
@@ -157,5 +189,5 @@ echo -e "  ${BOLD}停止/查看${NC}"
 echo "    docker compose down        # 停止"
 echo "    docker compose logs -f     # 查看日志"
 echo "    docker compose ps          # 查看状态"
-echo "    调用脚本上报（启用鉴权时先 export MO_API_KEY）："
+echo "    调用脚本上报（启用鉴权时先：export MO_API_KEY=\$(grep '^MO_API_KEY=' .env | cut -d= -f2-)）："
 echo "      python3 examples/trae_report_event.py --operation WRITE --layer prompt --memory-key demo --summary 你好 --token-count 10"

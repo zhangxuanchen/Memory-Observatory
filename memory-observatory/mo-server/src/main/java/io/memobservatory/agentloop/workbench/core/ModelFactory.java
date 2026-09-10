@@ -86,9 +86,9 @@ public class ModelFactory {
                 ? ref.model() : props.getDashscopeModel();
         String openModel = (ref != null && ref.model() != null && !ref.model().isBlank())
                 ? ref.model() : props.getOpenaiModel();
-        // 该 Agent 绑定的 AK 优先，未绑定回落全局默认（ak 为 null/空时取全局）
-        String dashKey = pickAgentAk(ak, "dashscope", props.getDashscopeApiKey());
-        String openaiKey = pickAgentAk(ak, "openai", props.getOpenaiApiKey());
+        // 该 Agent 绑定的 AK 优先，未绑定回落全局默认（界面配置 → 环境变量 → 兜底文件）
+        String dashKey = pickAgentAk(ak, "dashscope", globalAk("dashscope"));
+        String openaiKey = pickAgentAk(ak, "openai", globalAk("openai"));
         log.info("[ModelFactory] provider={} dashscopeKeySet={} openaiKeySet={}",
                 provider,
                 dashKey != null && !dashKey.isBlank(),
@@ -124,6 +124,13 @@ public class ModelFactory {
             if (bound != null && !bound.isBlank()) return bound;
         }
         return global;
+    }
+
+    /** 全局默认 AK：界面配置（GlobalKeyStore）优先，其次环境变量/兜底文件（props）。 */
+    private String globalAk(String provider) {
+        String ui = GlobalKeyStore.plain(provider);
+        if (ui != null && !ui.isBlank()) return ui;
+        return "openai".equals(provider) ? props.getOpenaiApiKey() : props.getDashscopeApiKey();
     }
 
     /**

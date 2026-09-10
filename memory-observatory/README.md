@@ -86,15 +86,12 @@ Web 界面（侧边栏四大功能区）：
 ### 一键启动
 
 ```bash
-# 本地演示（开放模式，无鉴权）
-./install.sh
-
-# 生产模式（启用 API Key 鉴权）
-export MO_API_KEY=$(openssl rand -hex 24)
 ./install.sh
 ```
 
-脚本自动完成：环境预检 → 构建镜像 → 启动 postgres / mo-server / mo-dashboard → 健康检查轮询 → 输出访问地址。三个容器均配置 `restart: unless-stopped`，Docker/开机重启后自动恢复。
+脚本自动完成：环境预检 → **生成配置文件 `.env`（含随机访问密钥，首次运行自动创建）** → 构建镜像 → 启动 postgres / mo-server / mo-dashboard → 健康检查轮询 → 输出访问地址与密钥。三个容器均配置 `restart: unless-stopped`，Docker/开机重启后自动恢复。
+
+> 鉴权开箱即用，零配置：访问密钥自动生成并持久化在根目录 `.env`（已被 .gitignore 排除，不会提交），之后 `docker compose up -d` 直接生效。**本机浏览器打开 https://localhost:5173 无需输入密钥**——nginx 会对未携带密钥的请求自动注入 `.env` 中的 `MO_API_KEY`（5173 仅绑定本机回环）。要开放免鉴权模式，把 `.env` 里的 `MO_API_KEY` 置空即可；显式 export 的环境变量优先于 `.env`。
 
 启动后：
 
@@ -104,7 +101,9 @@ export MO_API_KEY=$(openssl rand -hex 24)
 | REST API | http://localhost:8080 | 查询 + 工作台接口 |
 | OTLP 上报 | http://localhost:4318/v1/traces | SDK / 上报脚本入口 |
 
-启用鉴权后，浏览器首次打开会弹窗一次要求输入 API Key（侧边栏「API Key」可随时修改/清除）；SDK 与上报脚本需携带同一个 key。
+本机浏览器打开 5173 已由 nginx 自动注入密钥，无需配置；侧边栏「访问密钥」弹窗用于从**其他设备/客户端**访问时手动输入（或查看/清除浏览器保存的 key）；SDK 与上报脚本需携带同一个 key。
+
+调用大模型的 API Key 在侧边栏「模型密钥」配置（DashScope / OpenAI 兼容），供所有未单独绑定 Key 的 Agent（含内置工作区经理）与「.log 大模型格式化」使用；界面配置加密保存在本机并优先于 `.env` 环境变量，保存后立即生效。
 
 ### 验证一条上报
 
@@ -260,8 +259,8 @@ python3 examples/trae_report_event.py \
 
 | 变量 | 作用于 | 默认 | 说明 |
 |---|---|---|---|
-| `MO_API_KEY` | mo-server | 空 | 设置后 `/api/**`、`/v1/**` 强制 `Authorization: Bearer <key>`；空为开放模式（仅本地演示） |
-| `DASHSCOPE_API_KEY` | mo-server | 空 | `.log` 导入「大模型格式化解析」所需；不配置时该模式不可用 |
+| `MO_API_KEY` | mo-server + mo-dashboard | `.env` 自动生成 | `/api/**`、`/v1/**` 强制 `Authorization: Bearer <key>`。**首次运行 `./install.sh` 自动生成随机密钥并写入根目录 `.env`**（compose 自动加载，无需手动 export）；nginx 会把它自动注入未携带密钥的本机浏览器请求（5173 零配置）；在 `.env` 中置空则为开放模式（仅本地演示） |
+| `DASHSCOPE_API_KEY` | mo-server | 空 | `.log` 导入「大模型格式化解析」与未绑定 Key 的 Agent（含工作区经理）调用模型所需；也可在工作区侧边栏「模型密钥」界面配置（加密落盘，优先于本环境变量） |
 | `MO_DB_USER` / `MO_DB_PASSWORD` | postgres + mo-server | `mo` / `mo` | PostgreSQL 账号口令。**生产部署务必设置强口令**：`export MO_DB_PASSWORD='...'` 后再启动（注意：`POSTGRES_PASSWORD` 仅在数据卷首次初始化时生效，改口令需 `./install.sh --reset` 或手动改库） |
 | `MO_AGENT_CRYPTO_SECRET` | mo-server | 自动生成 | 工作台 Agent Key 落盘加密密钥（AES-GCM）。留空时首次启动在挂载目录 `~/.workbench/.crypto-secret`（权限 0600）生成随机密钥并持久化；生产环境建议显式设置以便备份/迁移 |
 | `MO_HOST_MOUNT_SRC` / `MO_HOST_MOUNT_DST` | mo-server 挂载 | `$HOME` / `$HOME` | 工作台可浏览的宿主机目录，见下方隐私说明 |
@@ -274,7 +273,7 @@ export MO_HOST_MOUNT_DST="$HOME/Documents"
 MO_API_KEY="..." docker compose up -d
 ```
 
-**端口暴露**：PostgreSQL（5432）与后端直连端口（8080/4318）默认只绑定 `127.0.0.1`，局域网不可见；浏览器统一走 nginx 的 HTTPS 入口 5173。
+**端口暴露**：所有端口（PostgreSQL 5432、后端直连 8080/4318、Web 入口 5173）默认只绑定 `127.0.0.1`，局域网不可见；浏览器统一走 nginx 的 HTTPS 入口 5173。如需从其他设备访问，自行修改 `docker-compose.yml` 中 5173 的绑定并评估风险（工作台可读写挂载的宿主机目录）。
 
 **TLS 证书**：mo-dashboard 首次启动在 `mo-certs` 卷中自动生成自签名证书（CN=localhost，10 年有效）；生产环境把正式证书挂载为该卷下的 `tls.crt` / `tls.key` 即可，无需改镜像。
 

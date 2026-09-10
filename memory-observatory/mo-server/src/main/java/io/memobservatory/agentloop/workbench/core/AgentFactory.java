@@ -69,6 +69,13 @@ public class AgentFactory {
 
     private final AgentProperties props;
     private final ModelFactory modelFactory;
+
+    /** 全局默认 AK：界面配置（GlobalKeyStore）优先，其次环境变量/兜底文件（props）。 */
+    private String globalAk(String provider) {
+        String ui = GlobalKeyStore.plain(provider);
+        if (ui != null && !ui.isBlank()) return ui;
+        return "openai".equals(provider) ? props.getOpenaiApiKey() : props.getDashscopeApiKey();
+    }
     private final UserInteractionHub interactionHub;
     private final WorkspaceManager workspaceManager;
     private final PluginRegistry pluginRegistry;
@@ -475,10 +482,11 @@ public class AgentFactory {
         if (adminAgent) {
             String mgrProvider = (m.model() != null && m.model().provider() != null && !m.model().provider().isBlank())
                     ? m.model().provider() : props.getProvider();
+            // 全局默认取钥：界面配置（GlobalKeyStore）优先，其次环境变量/兜底文件（props）
             String mgrDashKey = (agentAk.get("dashscope") != null && !agentAk.get("dashscope").isBlank())
-                    ? agentAk.get("dashscope") : props.getDashscopeApiKey();
+                    ? agentAk.get("dashscope") : globalAk("dashscope");
             String mgrOpenaiKey = (agentAk.get("openai") != null && !agentAk.get("openai").isBlank())
-                    ? agentAk.get("openai") : props.getOpenaiApiKey();
+                    ? agentAk.get("openai") : globalAk("openai");
             toolkit.registerTool(new WebCaptureTool(ws, mgrProvider, mgrDashKey, mgrOpenaiKey,
                     props.getOpenaiBaseUrl(), props.getVisionModel(), props.getChromePath()));
             toolkit.registerTool(new ManagerOrchestratorTool(this, workspaceManager, ws,

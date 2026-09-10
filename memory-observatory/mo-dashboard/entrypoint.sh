@@ -2,7 +2,8 @@
 # mo-dashboard 容器入口：
 # 1. /etc/nginx/certs 下没有证书时，自动生成自签名证书（10 年有效，CN=localhost）；
 #    生产环境可把真实证书挂载到该目录（tls.crt / tls.key）覆盖。
-# 2. 前台启动 nginx。
+# 2. 调用官方 nginx 入口完成初始化（含 /etc/nginx/templates 的 envsubst 模板替换，
+#    用于把 .env 的 MO_API_KEY 注入配置实现本机零配置鉴权），再前台启动 nginx。
 set -e
 
 CERT_DIR=/etc/nginx/certs
@@ -19,4 +20,4 @@ if [ ! -f "$CERT_DIR/tls.crt" ] || [ ! -f "$CERT_DIR/tls.key" ]; then
     -addext "subjectAltName=DNS:localhost,IP:127.0.0.1"
 fi
 
-exec nginx -g 'daemon off;'
+exec /docker-entrypoint.sh nginx -g 'daemon off;'
