@@ -2,12 +2,12 @@
   {
     "event_id": "evt-json-0001",
     "agent_id": "demo-import",
-    "session_id": "sess-json-01",
+    "session_id": "sess-json-05",
     "operation": "read",
     "layer": "prompt",
     "memory_key": "system-prompt.md",
     "memory_summary": "直接 JSON 导入：加载系统提示词",
-    "token_count": 1200,
+    "token_count": 1300,
     "latency_ms": 25.0,
     "timestamp": "2026-09-09 16:00:01",
     "metadata": {"source": "json-log", "kv_cache_hit": true}
@@ -15,7 +15,7 @@
   {
     "event_id": "evt-json-0002",
     "agent_id": "demo-import",
-    "session_id": "sess-json-01",
+    "session_id": "sess-json-07",
     "operation": "write",
     "layer": "provider",
     "memory_key": "mem0:user_profile",
@@ -27,7 +27,7 @@
   {
     "event_id": "evt-json-0003",
     "agent_id": "demo-import",
-    "session_id": "sess-json-01",
+    "session_id": "sess-json-09",
     "operation": "read",
     "layer": "skill",
     "memory_key": "skill:code-review",

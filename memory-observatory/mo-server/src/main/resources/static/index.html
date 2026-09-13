@@ -146,6 +146,20 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 .problems-tbar-spacer{flex:1}
 .problems-toolbar select{padding:5px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;background:#fff;color:var(--text-primary)}
 .problems-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:16px;width:100%}
+/* 严重度分层治理入口（demo P6）：过滤按钮组 / 卡片严重度徽标 / 建议动作行 */
+.sev-filter{display:flex;border:1px solid var(--border);border-radius:var(--radius-sm);overflow:hidden}
+.sev-filter button{border:none;background:#fff;padding:5px 12px;font-size:12px;color:var(--text-secondary);cursor:pointer;border-right:1px solid var(--border);display:flex;align-items:center;gap:4px}
+.sev-filter button:last-child{border-right:none}
+.sev-filter button:hover{background:rgba(0,0,0,.03);color:var(--text-primary)}
+.sev-filter button.on{background:#1A1A18;color:#fff;font-weight:500}
+.sev-filter button.on b{color:rgba(255,255,255,.85)}
+.sev-filter button b{font-weight:600;font-size:11px;color:var(--text-dim)}
+.sev-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:600;line-height:1.6;flex-shrink:0}
+.sev-danger{color:#C62828;background:rgba(198,40,40,.12)}
+.sev-warn{color:#B26A00;background:rgba(255,167,38,.16)}
+.sev-info{color:#1565C0;background:rgba(21,101,192,.10)}
+.problems-act{margin-top:auto;padding:7px 10px;border-radius:8px;background:rgba(0,0,0,.035);font-size:11.5px;line-height:1.5;color:var(--text-primary)}
+.pa-label{font-weight:600;color:var(--text-secondary);margin-right:6px}
 /* —— 流程分析 —— */
 .flow-pat{padding:9px 11px;border:1px solid var(--border,#D8D6CC);border-radius:8px;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s}
 .flow-pat:hover{border-color:#1A1A1A;box-shadow:0 2px 8px rgba(0,0,0,.06)}
@@ -687,6 +701,11 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 .ac-sess-table td{padding:6px 10px;font-size:11px}
 .ac-sort{display:inline-block;cursor:pointer;font-size:9px;line-height:1;color:var(--text-dim);margin-left:4px;vertical-align:1px;user-select:none}
 .ac-sort:hover,.ac-sort.on{color:var(--color-primary,#000000)}
+.ac-pill{display:inline-block;min-width:26px;text-align:center;padding:1px 7px;border-radius:999px;font-size:12px;font-weight:600;margin-right:5px}
+.ac-pill-ok{color:#2E7D32;background:rgba(76,175,80,0.14)}
+.ac-pill-warn{color:#B26A00;background:rgba(255,167,38,0.16)}
+.ac-pill-bad{color:#C62828;background:rgba(198,40,40,0.12)}
+.ac-grade{font-size:11px;color:var(--text-dim)}
 .ac-title{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .agent-comp-search{height:30px;width:180px;padding:0 10px;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:transparent;color:var(--text-primary);font-size:12px;box-sizing:border-box}
 .agent-comp-search:focus{outline:none;border-color:var(--color-primary,#000000)}
@@ -1368,6 +1387,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
         <span data-i18n="sec-agent-comparison">Agent 对比</span>
         <input id="agentCompSearch" class="agent-comp-search" data-i18n-ph="ac-search-ph" oninput="filterAgentComparison(this.value)">
       </div>
+      <div class="section-hint" data-i18n="ac-health-hint">循环率 / 无效操作率 / 健康分由流程分析按节点算出的 S3 循环参与、S7 失败率与节点健康汇总回 Agent 级（30 天窗口）；任一项显著偏离同类 Agent，说明该 Agent 的记忆策略配置有问题，在白白烧钱。循环率 &gt;8%、无效操作率 &gt;10% 标红。</div>
       <div class="table-wrap">
         <table class="data-table" id="agentCompTable">
           <thead><tr>
@@ -1380,10 +1400,13 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
             <th><span data-i18n="col-update-rate">更新率</span><span class="ac-sort" data-key="upd" title="排序" onclick="sortAgentComp('upd')">↕</span></th>
             <th><span data-i18n="col-expire-rate">遗忘率</span><span class="ac-sort" data-key="exp" title="排序" onclick="sortAgentComp('exp')">↕</span></th>
             <th><span data-i18n="col-skill-pct">Skill 占比</span><span class="ac-sort" data-key="skillPct" title="排序" onclick="sortAgentComp('skillPct')">↕</span></th>
+            <th><span data-i18n="col-loop-rate">循环率</span><span class="ac-sort" data-key="loopRate" title="排序" onclick="sortAgentComp('loopRate')">↕</span></th>
+            <th><span data-i18n="col-invalid-rate">无效操作率</span><span class="ac-sort" data-key="invalidRate" title="排序" onclick="sortAgentComp('invalidRate')">↕</span></th>
+            <th><span data-i18n="col-health-score">健康分</span><span class="ac-sort" data-key="healthScore" title="排序" onclick="sortAgentComp('healthScore')">↕</span></th>
             <th><span data-i18n="col-last-active">最后活跃</span><span class="ac-sort" data-key="lastActive" title="排序" onclick="sortAgentComp('lastActive')">↕</span></th>
           </tr></thead>
           <tbody id="agentCompBody">
-            <tr><td colspan="10" class="empty" data-i18n="loading">加载中…</td></tr>
+            <tr><td colspan="13" class="empty" data-i18n="loading">加载中…</td></tr>
           </tbody>
         </table>
       </div>
@@ -1443,6 +1466,13 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       <div class="section-title"><span data-i18n="sec-sk-tokens">指标⑤ · Skill 消耗 Token（Top 10）</span></div>
       <div id="skillTokensChart" class="chart-area" style="height:260px"></div>
     </div>
+  </div>
+  <!-- 调用分布 · 冷热分层（冷热失衡 + 僵尸 Skill 检测） -->
+  <div class="section-card analysis-full" style="margin-bottom:14px" id="sk-sec-heat">
+    <div class="section-title"><span data-i18n="sk-heat-title">调用分布 · 冷热分层</span></div>
+    <div class="section-hint" data-i18n="sk-heat-hint">把窗口内每个 Skill 的调用次数分为高频 / 中频 / 低频 / 零调用（僵尸）四档：冷热失衡说明技能装配与真实用法脱节——少数技能吃掉绝大多数调用；僵尸 Skill 已注册却一次都没被调用，其描述文本仍每轮占用上下文预算，建议下线或归档后观察成本变化。</div>
+    <div id="skillHeatDist" style="margin:6px 0 10px"></div>
+    <div id="skillZombieBox"></div>
   </div>
   <!-- 指标① 报错（最高优先级） -->
   <div class="section-card analysis-full" style="margin-bottom:14px" id="sk-sec-errors">
@@ -1512,6 +1542,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 
 <!-- ============ PAGE: 问题分析 ============ -->
 <section class="page" id="page-problems" aria-label="问题分析">
+  <div class="section-hint" style="display:block;margin:0 0 12px" data-i18n="problems-hint">严重度分层治理入口：红色「严重」= 正在发生资损或性能退化（技能循环、Token 烧穿、请求失败），需立即处理；橙色「警告」= 趋势正逼近阈值（变慢、调用膨胀），建议近期处理；蓝色「提示」= 观察项。每张命中卡底部直接给出「A → B → C」建议动作，作为从观测跨到治理的入口——未来接入治理层后可一键执行压缩接管、归档、熔断。</div>
   <div class="problems-toolbar">
     <span class="problems-tbar-label" data-i18n="problems-window">时间窗口</span>
     <select id="problemsDays" onchange="loadProblems()">
@@ -1519,6 +1550,12 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       <option value="30" data-i18n="problems-d30">最近 30 天</option>
       <option value="0" data-i18n="problems-all">全部</option>
     </select>
+    <div class="sev-filter" id="sevFilter" role="group" aria-label="严重度过滤">
+      <button type="button" class="on" data-sev="" onclick="setProblemSev('')"><span data-i18n="problems-sev-all">全部</span></button>
+      <button type="button" data-sev="danger" onclick="setProblemSev('danger')"><span data-i18n="problems-sev-danger">严重</span> <b id="sevN-danger"></b></button>
+      <button type="button" data-sev="warn" onclick="setProblemSev('warn')"><span data-i18n="problems-sev-warn">警告</span> <b id="sevN-warn"></b></button>
+      <button type="button" data-sev="info" onclick="setProblemSev('info')"><span data-i18n="problems-sev-info">提示</span> <b id="sevN-info"></b></button>
+    </div>
     <span class="problems-tbar-spacer"></span>
     <span class="problems-tbar-label" data-i18n="problems-agent">Agent</span>
     <select id="problemsAgent" onchange="loadProblems()">
@@ -1547,7 +1584,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
         </select></div>
       </div>
     </div>
-    <div class="section-hint" data-i18n="da-hint">流程分析把 Agent 落库的记忆事件还原为「turn 级流程」：一个 turn 是一轮交互内的记忆操作序列，每个操作归一化为节点（read/write/update/expire × prompt/session/skill/provider，如 read@session=会话记忆检索），相同序列归并为流程变体并统计频次，据此画出转移图并自动定位出问题的节点。三栏这样用：① 左栏「流程（按频次）」列出每种变体的出现次数、占比与 token 消耗，含循环/坏味道标记，点击条目会在中栏高亮对应路径；② 中栏「转移图」节点编号即流向顺序（1 为起点，▶ 起点、⏹ 终点），边宽 = 转移频次，节点色 = 健康度（绿正常/黄预警/红问题），支持拖拽缩放；③ 右栏「问题节点」卡片列出命中信号的节点（S1 烧钱/S2 慢/S3 循环参与/S7 失败率），点击卡片会在图上定位该节点并弹出详情滑块，展示是哪几个 turn 出的问题、证据与操作上下文。使用时先在顶部选择 Agent，可再按 Session（一个 Session 含多个 turn）与时间窗口过滤。</div>
+    <div class="section-hint" data-i18n="da-hint">流程分析把 Agent 落库的记忆事件还原为「turn 级流程」：一个 turn 是一轮交互内的记忆操作序列，每个操作归一化为节点（read/write/update/expire × prompt/session/skill/provider，如 read@session=会话记忆检索），相同序列归并为流程变体并统计频次，据此画出转移图并自动定位出问题的节点。三栏这样用：① 左栏「流程（按频次）」列出每种变体的出现次数、占比与 token 消耗，含循环/坏味道标记，点击条目会在中栏高亮对应路径；② 中栏「转移图」节点编号即流向顺序（1 为起点，▶ 起点、⏹ 终点），边宽 = 转移频次，节点色 = 操作类型（青=读取/绿=写入/紫=更新/红=遗忘），描边 = 健康度（红=问题/橙=预警/深色=正常），划过节点点亮其邻接路径、点击可钉住，支持拖拽缩放；③ 右栏「问题节点」卡片列出命中信号的节点（S1 烧钱/S2 慢/S3 循环参与/S7 失败率），点击卡片会在图上定位该节点并弹出详情滑块，展示是哪几个 turn 出的问题、证据与操作上下文。使用时先在顶部选择 Agent，可再按 Session（一个 Session 含多个 turn）与时间窗口过滤。为什么监控它：转移图把记忆事件按「操作 × 层级」聚合成状态机，看 Agent 在记忆层「怎么走」——红色自环边就是循环。风险信号 S3：同一状态反复转移（READ→READ→READ）= Agent 在原地打转，token 与延迟空烧、任务不会前进。解决什么问题：Agent 卡死/死循环靠肉眼看日志很难发现，转移图 + 自环循环计数让「打转」显形，据此可触发循环熔断或提示用户接管。</div>
   </div>
   <div id="flowEmpty" class="empty" data-i18n="flow-empty-select">先选择 Agent，查看它的记忆操作流程</div>
   <div id="flowBody" style="display:none">
@@ -1559,7 +1596,13 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       <div class="section-card">
         <div class="section-title">
           <span data-i18n="flow-graph-title">转移图</span>
-          <em style="font-size:10px;color:var(--text-dim);font-style:normal;margin-left:auto" data-i18n="flow-graph-legend">边宽 = 频次 · 节点色 = 健康度</em>
+          <em id="flowLegend" style="font-size:10px;color:var(--text-dim);font-style:normal;margin-left:auto;display:inline-flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <span style="display:inline-flex;align-items:center;gap:4px"><i style="width:9px;height:9px;border-radius:50%;background:#E0F4FA;border:1.5px solid #0E7A96"></i><span data-i18n="op-read">读取</span></span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><i style="width:9px;height:9px;border-radius:50%;background:#E1F5EE;border:1.5px solid #0F6E56"></i><span data-i18n="op-write">写入</span></span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><i style="width:9px;height:9px;border-radius:50%;background:#ECE7FA;border:1.5px solid #5A3DB8"></i><span data-i18n="op-update">更新</span></span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><i style="width:9px;height:9px;border-radius:50%;background:#FCE9E9;border:1.5px solid #A32D2D"></i><span data-i18n="op-expire">遗忘</span></span>
+            <span style="display:inline-flex;align-items:center;gap:4px"><i style="width:14px;height:0;border-top:1.5px dashed #A32D2D"></i><span data-i18n="flow-graph-loop-note">红虚线 = 循环</span></span>
+          </em>
         </div>
         <div id="flowGraphWrap" style="height:560px;min-width:0">
           <div id="flowGraph" style="width:100%;height:100%"></div>
@@ -2326,6 +2369,70 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 #agentNewSkillList .skill-check:has(input:checked){background:#EFEFF1;border-color:rgba(0,0,0,0.26);color:var(--text-primary);font-weight:500}
 #agentNewSkillList .skill-check input{width:14px;height:14px;flex:none;accent-color:#1A1A1A;margin:0}
 </style>
+
+<style>
+/* ============ 全站输入控件统一皮肤：下拉框 + 填空编辑框 → ff-item 胶囊风格 ============ */
+/* 置于文档末尾：同特异度后到先得，统一全部 select / 单行 input 视觉（textarea / checkbox / 按钮不在此列） */
+.filter-input,.filter-select,.agent-comp-search,.preview-input,
+.modal-path input,#uiModal .modal-path input,
+#agentNewModal .modal-path input:not([type="checkbox"]),
+#skillModal input:not([type="checkbox"]),#skillModal select,
+#mcpModal .mcp-card input:not([type=checkbox]),
+.import-single-grid .is-fld input,.import-single-grid .is-fld select,
+.problems-toolbar select,.agent-side-head .ws-select,.ws-input{
+  background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03));
+  border:1px solid rgba(0,0,0,.1);
+  border-radius:999px;
+  transition:border-color .15s,background .15s,box-shadow .15s;
+}
+.filter-input:hover,.filter-select:hover,.agent-comp-search:hover,.preview-input:hover,
+.modal-path input:hover,#uiModal .modal-path input:hover,
+#agentNewModal .modal-path input:not([type="checkbox"]):hover,
+#skillModal input:not([type="checkbox"]):hover,#skillModal select:hover,
+#mcpModal .mcp-card input:not([type=checkbox]):hover,
+.import-single-grid .is-fld input:hover,.import-single-grid .is-fld select:hover,
+.problems-toolbar select:hover,.agent-side-head .ws-select:hover,.ws-input:hover{
+  border-color:rgba(15,110,86,.4);
+}
+.filter-input:focus,.filter-select:focus,.agent-comp-search:focus,.preview-input:focus,
+.modal-path input:focus,#uiModal .modal-path input:focus,
+#agentNewModal .modal-path input:not([type="checkbox"]):focus,
+#skillModal input:not([type="checkbox"]):focus,#skillModal select:focus,
+#mcpModal .mcp-card input:not([type=checkbox]):focus,
+.import-single-grid .is-fld input:focus,.import-single-grid .is-fld select:focus,
+.problems-toolbar select:focus,.agent-side-head .ws-select:focus,.ws-input:focus{
+  outline:none;border-color:rgba(15,110,86,.65);
+  background-color:rgba(15,110,86,.05);
+  box-shadow:0 0 0 3px rgba(15,110,86,.1);
+}
+/* 下拉框：去原生箭头，换 ff-item 同款 SVG 箭头 + 600 字重（双层背景：箭头在上，胶囊渐变在下） */
+.filter-select,.problems-toolbar select,.agent-side-head .ws-select,.ws-input,
+#skillModal select,.import-single-grid .is-fld select{
+  appearance:none;-webkit-appearance:none;-moz-appearance:none;
+  background-image:url("data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23555' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"),linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03));
+  background-repeat:no-repeat;background-position:right 8px center,0 0;background-size:10px 6px,auto;
+  padding-right:26px;font-weight:600;
+}
+/* 字号统一 12px（与 ff-item 下拉一致） */
+.problems-toolbar select,.agent-side-head .ws-select,.ws-input,
+#skillModal input:not([type="checkbox"]),#skillModal select,
+#mcpModal .mcp-card input:not([type=checkbox]){font-size:12px}
+/* 带「重置」钮的下拉：文字与箭头避开右侧清空按钮 */
+.filter-select{padding-right:42px}
+.filter-clear.select-clear{right:30px}
+/* 容器型胶囊（内嵌无边框输入 + 绝对定位清空钮） */
+.agent-box{
+  background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03));
+  border:1px solid rgba(0,0,0,.1);border-radius:999px;
+  transition:border-color .15s,background .15s,box-shadow .15s;
+}
+.agent-box:hover{border-color:rgba(15,110,86,.4)}
+.agent-box:focus-within{border-color:rgba(15,110,86,.65);background:rgba(15,110,86,.05);box-shadow:0 0 0 3px rgba(15,110,86,.1)}
+/* mcp-url 组合框：整体胶囊（徽标左半圆 + 输入右半圆） */
+#mcpModal .mcp-url .mcp-url-badge{border-color:rgba(0,0,0,.1);border-radius:999px 0 0 999px}
+#mcpModal .mcp-card .mcp-url input{border-radius:0 999px 999px 0}
+#mcpModal .mcp-url:focus-within .mcp-url-badge{border-color:rgba(15,110,86,.65);background:rgba(15,110,86,.08)}
+</style>
 <!-- ============ 新建 Agent（命名 + 挂载技能）弹框 ============ -->
 <div class="modal-mask" id="agentNewMask" style="display:none" onclick="agentNewClose()"></div>
 <div class="modal" id="agentNewModal" style="display:none">
@@ -2426,7 +2533,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       +'<div id="mo-ak-status" class="mo-ak-status no"></div>'
       +'<div style="font-size:12px;color:#777;margin-bottom:12px;line-height:1.6;">这是<b>本系统的接口访问口令</b>（相当于登录密码，防止他人通过端口访问你的文件与数据），<b>不是大模型 AK</b>——调用 DashScope/Qwen 等模型不需要也不使用它。该密钥用于本页面所有数据请求（与 SDK / 上报脚本使用同一个 MO_API_KEY），仅保存在当前浏览器。</div>'
       +'<input id="mo-apikey-input" type="password" placeholder="输入 MO_API_KEY" autocomplete="off" '
-      +'style="width:100%;box-sizing:border-box;padding:9px 12px;font-size:13px;border:1.5px solid #d5d9de;border-radius:8px;outline:none;background:#fff;color:#111;transition:border-color .15s;">'
+      +'style="width:100%;box-sizing:border-box;padding:9px 14px;font-size:12px;border:1px solid rgba(0,0,0,.1);border-radius:999px;outline:none;background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03));color:#111;transition:border-color .15s,background .15s,box-shadow .15s;">'
       +'<div style="display:flex;align-items:center;gap:10px;margin-top:16px;">'
       +'<button id="mo-apikey-clear" style="display:none;padding:7px 14px;font-size:12.5px;border:1px solid #E0524A;background:#fff;color:#E0524A;border-radius:8px;cursor:pointer;">清除 Key</button>'
       +'<div style="flex:1"></div>'
@@ -2435,8 +2542,8 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       +'</div></div>';
     document.body.appendChild(mask);
     const akInp=mask.querySelector('#mo-apikey-input');
-    akInp.addEventListener('focus',()=>akInp.style.borderColor='#0F6E56');
-    akInp.addEventListener('blur',()=>akInp.style.borderColor='#d5d9de');
+    akInp.addEventListener('focus',()=>{akInp.style.borderColor='rgba(15,110,86,.65)';akInp.style.background='rgba(15,110,86,.05)';akInp.style.boxShadow='0 0 0 3px rgba(15,110,86,.1)';});
+    akInp.addEventListener('blur',()=>{akInp.style.borderColor='rgba(0,0,0,.1)';akInp.style.background='linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03))';akInp.style.boxShadow='none';});
     mask.querySelector('#mo-apikey-ok').onclick=()=>{
       const v=mask.querySelector('#mo-apikey-input').value.trim();
       if(!v) return;
@@ -2577,6 +2684,9 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     mask.querySelector('#mo-mk-oa-val').onclick=()=>validateModelKey('oa');
     mask.querySelector('#mo-mk-ds-clear').onclick=()=>clearModelKey('ds');
     mask.querySelector('#mo-mk-oa-clear').onclick=()=>clearModelKey('oa');
+    ['ds','oa'].forEach(p=>{const mkInp=mask.querySelector('#mo-mk-'+p+'-input');
+      mkInp.addEventListener('focus',()=>{mkInp.style.borderColor='rgba(15,110,86,.65)';mkInp.style.background='rgba(15,110,86,.05)';mkInp.style.boxShadow='0 0 0 3px rgba(15,110,86,.1)';});
+      mkInp.addEventListener('blur',()=>{mkInp.style.borderColor='rgba(0,0,0,.1)';mkInp.style.background='linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03))';mkInp.style.boxShadow='none';});});
   }
   function mkRow(p,label){
     return '<div>'
@@ -2584,7 +2694,7 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
       +'<div id="mo-mk-'+p+'-status" class="mo-ak-status no" style="margin-bottom:8px;"></div>'
       +'<div style="display:flex;gap:8px;align-items:center;">'
       +'<input id="mo-mk-'+p+'-input" type="password" autocomplete="off" placeholder="" '
-      +'style="flex:1;min-width:0;box-sizing:border-box;padding:8px 11px;font-size:13px;border:1.5px solid #d5d9de;border-radius:8px;outline:none;">'
+      +'style="flex:1;min-width:0;box-sizing:border-box;padding:8px 14px;font-size:12px;border:1px solid rgba(0,0,0,.1);border-radius:999px;outline:none;background:linear-gradient(180deg,rgba(255,255,255,.6),rgba(0,0,0,.03));transition:border-color .15s,background .15s,box-shadow .15s;">'
       +'<button id="mo-mk-'+p+'-val" style="padding:7px 12px;font-size:12px;border:1px solid #0F6E56;background:#fff;color:#0F6E56;border-radius:8px;cursor:pointer;flex:none;">校验</button>'
       +'<button id="mo-mk-'+p+'-clear" style="display:none;padding:7px 12px;font-size:12px;border:1px solid #E0524A;background:#fff;color:#E0524A;border-radius:8px;cursor:pointer;flex:none;">清除</button>'
       +'</div></div>';
@@ -2731,6 +2841,10 @@ const I18N={
     'problems-loading':'加载中…',
     'problems-empty':'未发现该类型问题 · 指标健康',
     'problems-th-label':'判定阈值：',
+    'sev-danger':'严重','sev-warn':'警告','sev-info':'提示',
+    'problems-act-label':'建议动作：',
+    'problems-sev-all':'全部','problems-sev-danger':'严重','problems-sev-warn':'警告','problems-sev-info':'提示',
+    'problems-hint':'严重度分层治理入口：红色「严重」= 正在发生资损或性能退化（技能循环、Token 烧穿、请求失败），需立即处理；橙色「警告」= 趋势正逼近阈值（变慢、调用膨胀），建议近期处理；蓝色「提示」= 观察项。每张命中卡底部直接给出「A → B → C」建议动作，作为从观测跨到治理的入口——未来接入治理层后可一键执行压缩接管、归档、熔断。',
     'prob-skill-slow':'Skill 执行时间过长',
     'prob-skill-count':'Skill 执行次数过多',
     'prob-skill-repeat':'Skill 被反复调用（单 turn 循环/震荡）',
@@ -2788,7 +2902,7 @@ const I18N={
     'da-title':'流程分析 · 记忆操作流转与问题节点定位',
     'nav-import':'数据导入 · Import',
     'nav-import-entry':'数据导入',
-    'da-hint':'流程分析把 Agent 落库的记忆事件还原为「turn 级流程」：一个 turn 是一轮交互内的记忆操作序列，每个操作归一化为节点（read/write/update/expire × prompt/session/skill/provider，如 read@session=会话记忆检索），相同序列归并为流程变体并统计频次，据此画出转移图并自动定位出问题的节点。三栏这样用：① 左栏「流程（按频次）」列出每种变体的出现次数、占比与 token 消耗，含循环/坏味道标记，点击条目会在中栏高亮对应路径；② 中栏「转移图」节点编号即流向顺序（1 为起点，▶ 起点、⏹ 终点），边宽 = 转移频次，节点色 = 健康度（绿正常/黄预警/红问题），支持拖拽缩放；③ 右栏「问题节点」卡片列出命中信号的节点（S1 烧钱/S2 慢/S3 循环参与/S7 失败率），点击卡片会在图上定位该节点并弹出详情滑块，展示是哪几个 turn 出的问题、证据与操作上下文。使用时先在顶部选择 Agent，可再按 Session（一个 Session 含多个 turn）与时间窗口过滤。',
+    'da-hint':'流程分析把 Agent 落库的记忆事件还原为「turn 级流程」：一个 turn 是一轮交互内的记忆操作序列，每个操作归一化为节点（read/write/update/expire × prompt/session/skill/provider，如 read@session=会话记忆检索），相同序列归并为流程变体并统计频次，据此画出转移图并自动定位出问题的节点。三栏这样用：① 左栏「流程（按频次）」列出每种变体的出现次数、占比与 token 消耗，含循环/坏味道标记，点击条目会在中栏高亮对应路径；② 中栏「转移图」节点编号即流向顺序（1 为起点，▶ 起点、⏹ 终点），边宽 = 转移频次，节点色 = 操作类型（青=读取/绿=写入/紫=更新/红=遗忘），描边 = 健康度（红=问题/橙=预警/深色=正常），划过节点点亮其邻接路径、点击可钉住，支持拖拽缩放；③ 右栏「问题节点」卡片列出命中信号的节点（S1 烧钱/S2 慢/S3 循环参与/S7 失败率），点击卡片会在图上定位该节点并弹出详情滑块，展示是哪几个 turn 出的问题、证据与操作上下文。使用时先在顶部选择 Agent，可再按 Session（一个 Session 含多个 turn）与时间窗口过滤。为什么监控它：转移图把记忆事件按「操作 × 层级」聚合成状态机，看 Agent 在记忆层「怎么走」——红色自环边就是循环。风险信号 S3：同一状态反复转移（READ→READ→READ）= Agent 在原地打转，token 与延迟空烧、任务不会前进。解决什么问题：Agent 卡死/死循环靠肉眼看日志很难发现，转移图 + 自环循环计数让「打转」显形，据此可触发循环熔断或提示用户接管。',
     'flow-select-agent':'选择 Agent',
     'flow-all-sessions':'全部 Session',
     'flow-d7':'近 7 天',
@@ -2796,7 +2910,8 @@ const I18N={
     'flow-dall':'全部',
     'flow-list-title':'流程（按频次）',
     'flow-graph-title':'转移图',
-    'flow-graph-legend':'节点编号 = 流向顺序 · 边宽 = 频次 · 节点色 = 健康度',
+    'op-read':'读取', 'op-write':'写入', 'op-update':'更新', 'op-expire':'遗忘',
+    'flow-graph-loop-note':'红虚线 = 循环', 'flow-loop-word':'循环',
     'flow-issues-title':'问题节点',
     'flow-empty-select':'先选择 Agent，查看它的记忆操作流程',
     'flow-empty-data':'该时间窗口内无流程数据',
@@ -2922,6 +3037,7 @@ const I18N={
     'import-log-start':'开始导入 {n} 个 .log 文件…',
     'import-log-done':'导入完成',
     'import-log-files':'成功文件',
+    'import-err-401':'访问密钥缺失或不正确（401 认证拦截，与大模型解析无关）：点侧边栏「访问密钥」填入 MO_API_KEY，或改用 https://localhost:5173（本机访问自动注入密钥）',
     'import-log-err-sample':'首个错误',
     'import-log-dup':'内容与已导入文件一致（MD5 相同），已跳过抽取',
     'import-log-dup-prev':'上次导入',
@@ -2958,6 +3074,12 @@ const I18N={
     'import-errors-head':'失败明细（前 10 条）：',
     'sec-agent-comparison':'Agent 对比',
     'ac-toggle-title':'按 Session 查看明细',
+    'col-loop-rate':'循环率','col-invalid-rate':'无效操作率','col-health-score':'健康分',
+    'grade-ok':'优','grade-warn':'中','grade-bad':'差',
+    'ac-loop-rate-tip':'循环率：该 Agent 近 30 天参与记忆循环（连续重复/滑窗重复调用模式）的操作占比，>8% 说明记忆策略可能配置不当，在空转烧钱',
+    'ac-invalid-rate-tip':'无效操作率：该 Agent 近 30 天失败（报错）记忆操作占比，>10% 说明该 Agent 的读写链路存在系统性问题',
+    'ac-health-tip':'健康分：由流程分析节点健康汇总——100 − 12×问题节点 − 4×警告节点 − 循环率/失败率惩罚；ok 节点 {ok} / warn 节点 {warn} / bad 节点 {bad}',
+    'ac-health-hint':'循环率 / 无效操作率 / 健康分由流程分析按节点算出的 S3 循环参与、S7 失败率与节点健康汇总回 Agent 级（30 天窗口）；任一项显著偏离同类 Agent，说明该 Agent 的记忆策略配置有问题，在白白烧钱。循环率 >8%、无效操作率 >10% 标红。',
     'ac-search-ph':'搜索 Agent…',
     'sec-skill-top':'Skill 调用 Top 10',
     'sec-skill-op-dist':'Skill 操作分布',
@@ -3035,6 +3157,13 @@ const I18N={
     'col-turn':'Turn','col-sk-agentlist':'引用 Agent 列表','col-sk-sample':'报错摘要','col-sk-count':'单 turn 调用次数',
     'col-sk-slowevents':'慢调用次数','col-sk-maxlat':'最大耗时',
     'sec-sk-errors':'指标① · Skill 执行报错','sec-sk-repeat':'指标② · Skill 被反复调用（单 turn 循环/震荡）',
+    'sk-heat-title':'调用分布 · 冷热分层',
+    'sk-heat-hint':'把窗口内每个 Skill 的调用次数分为高频 / 中频 / 低频 / 零调用（僵尸）四档：冷热失衡说明技能装配与真实用法脱节——少数技能吃掉绝大多数调用；僵尸 Skill 已注册却一次都没被调用，其描述文本仍每轮占用上下文预算，建议下线或归档后观察成本变化。',
+    'sk-heat-hot':'高频（>100 次）','sk-heat-mid':'中频（40–100 次）','sk-heat-cold':'低频（<40 次）','sk-heat-zero':'零调用（僵尸）',
+    'sk-heat-none':'窗口内没有 Skill 调用数据','sk-heat-total':'共 {n} 个 Skill',
+    'sk-zombie-found':'检出 {n} 个僵尸 Skill（已注册但窗口内 0 次调用）：',
+    'sk-zombie-none':'未检出僵尸 Skill：所有已注册技能在窗口内都有调用',
+    'sk-zombie-act':'建议：下线或归档该技能，观察上下文成本变化',
     'sec-sk-slow':'指标③ · Skill 执行耗时离群（超阈值）','sec-sk-calls':'指标④ · Skill 调用次数（Top 10）',
     'sec-sk-tokens':'指标⑤ · Skill 消耗 Token（Top 10）','sec-sk-refs':'指标⑥ · Skill 被 Agent 引用',
     'col-user':'用户问题','col-steps':'操作步骤','col-outcome':'结果','unit-step':'步','unit-token':'token','no-actions':'无操作步骤',
@@ -3125,6 +3254,10 @@ const I18N={
     'problems-loading':'Loading…',
     'problems-empty':'No issue detected · healthy',
     'problems-th-label':'Threshold:',
+    'sev-danger':'Critical','sev-warn':'Warning','sev-info':'Info',
+    'problems-act-label':'Suggested actions: ',
+    'problems-sev-all':'All','problems-sev-danger':'Critical','problems-sev-warn':'Warning','problems-sev-info':'Info',
+    'problems-hint':'Severity-tiered governance entry: red "Critical" = active cost burn or degradation (skill loops, token burnout, failures) — handle now; orange "Warning" = trend approaching threshold (slowing, call inflation) — handle soon; blue "Info" = observation. Each hit card ends with "A → B → C" suggested actions, the bridge from observability to governance — one-click compaction takeover / archival / circuit-breaking once the governance layer is wired in.',
     'prob-skill-slow':'Skill too slow',
     'prob-skill-count':'Too many Skill calls',
     'prob-skill-repeat':'Skill called repeatedly (loop/oscillation)',
@@ -3182,7 +3315,7 @@ const I18N={
     'da-title':'Flow Analysis · Memory Operation Flows & Problem Nodes',
     'nav-import':'Import',
     'nav-import-entry':'Import',
-    'da-hint':'Flow analysis reconstructs the agent\'s recorded memory events into "turn-level flows": a turn is the sequence of memory operations within one interaction round, each operation is normalized into a node (read/write/update/expire × prompt/session/skill/provider, e.g. read@session = session memory retrieval), identical sequences are merged into flow variants with frequency stats, from which the transition graph is drawn and problem nodes are located automatically. How to use the three columns: ① Left "Flows (by frequency)" lists each variant\'s count, share and token usage, with loop/smell badges; click an entry to highlight that path in the graph. ② Middle "Transition graph": node numbers show flow order (1 = start, ▶ start mark, ⏹ end mark), edge width = transition frequency, node color = health (green normal / yellow warning / red problem); drag to pan, scroll to zoom. ③ Right "Problem nodes" cards list nodes hitting signals (S1 burn / S2 slow / S3 loop join / S7 fail ratio); clicking a card locates the node on the graph and opens a detail slider showing which turns are affected, the evidence and the operation context. Start by picking an agent on top, optionally filter by session (one session contains multiple turns) and time window.',
+    'da-hint':'Flow analysis reconstructs the agent\'s recorded memory events into "turn-level flows": a turn is the sequence of memory operations within one interaction round, each operation is normalized into a node (read/write/update/expire × prompt/session/skill/provider, e.g. read@session = session memory retrieval), identical sequences are merged into flow variants with frequency stats, from which the transition graph is drawn and problem nodes are located automatically. How to use the three columns: ① Left "Flows (by frequency)" lists each variant\'s count, share and token usage, with loop/smell badges; click an entry to highlight that path in the graph. ② Middle "Transition graph": node numbers show flow order (1 = start, ▶ start mark, ⏹ end mark), edge width = transition frequency, node color = operation (cyan read / green write / purple update / red expire), stroke = health (red problem / orange warning / dark normal); hover a node to light up its adjacent paths, click to pin; drag to pan, scroll to zoom. ③ Right "Problem nodes" cards list nodes hitting signals (S1 burn / S2 slow / S3 loop join / S7 fail ratio); clicking a card locates the node on the graph and opens a detail slider showing which turns are affected, the evidence and the operation context. Start by picking an agent on top, optionally filter by session (one session contains multiple turns) and time window. Why monitor: the transition graph aggregates memory events into a state machine of operation × layer, showing how the agent "walks" through memory — a red self-loop edge is a loop. Risk signal S3: the same state transitioning repeatedly (READ→READ→READ) means the agent is spinning in place, burning tokens and latency with no task progress. What it solves: agent deadlocks / infinite loops are hard to spot in raw logs; the graph plus self-loop counts makes spinning visible, so you can trigger loop breaking or hand over to the user.',
     'flow-select-agent':'Select agent',
     'flow-all-sessions':'All sessions',
     'flow-d7':'Last 7 days',
@@ -3190,7 +3323,8 @@ const I18N={
     'flow-dall':'All time',
     'flow-list-title':'Flows (by frequency)',
     'flow-graph-title':'Transition graph',
-    'flow-graph-legend':'Node number = flow order · Edge width = frequency · Node color = health',
+    'op-read':'Read', 'op-write':'Write', 'op-update':'Update', 'op-expire':'Expire',
+    'flow-graph-loop-note':'Red dashed = loop', 'flow-loop-word':'loop',
     'flow-issues-title':'Problem nodes',
     'flow-empty-select':'Select an agent to inspect its memory operation flows',
     'flow-empty-data':'No flow data in this window',
@@ -3316,6 +3450,7 @@ const I18N={
     'import-log-start':'Importing {n} .log files…',
     'import-log-done':'Import finished',
     'import-log-files':'Files ok',
+    'import-err-401':'Access key missing or invalid (401, unrelated to LLM parsing): set MO_API_KEY via sidebar "Access Key", or use https://localhost:5173 (key auto-injected)',
     'import-log-dup':'Content identical to a previously imported file (same MD5), extraction skipped',
     'import-log-dup-prev':'Last imported',
     'import-log-dup-n':'Skipped (same MD5)',
@@ -3352,6 +3487,12 @@ const I18N={
     'import-errors-head':'Errors (first 10):',
     'sec-agent-comparison':'Agent Comparison',
     'ac-toggle-title':'View session breakdown',
+    'col-loop-rate':'Loop Rate','col-invalid-rate':'Invalid Rate','col-health-score':'Health Score',
+    'grade-ok':'Good','grade-warn':'Fair','grade-bad':'Poor',
+    'ac-loop-rate-tip':'Loop rate: share of memory operations (last 30d) participating in loop patterns (consecutive / sliding-window repeats); >8% suggests a misconfigured memory strategy burning tokens',
+    'ac-invalid-rate-tip':'Invalid rate: share of failed (errored) memory operations (last 30d); >10% indicates a systematic issue in this agent\'s read/write path',
+    'ac-health-tip':'Health score: aggregated from flow node health — 100 − 12×bad − 4×warn nodes − loop/invalid penalties; ok {ok} / warn {warn} / bad {bad}',
+    'ac-health-hint':'Loop rate / invalid rate / health score aggregate S3 loop participation, S7 failure rate and node health (computed per node in Flow Analysis) back to the agent level (30d window). Any value deviating notably from peer agents means a misconfigured memory strategy burning tokens. Red when loop >8% or invalid >10%.',
     'ac-search-ph':'Search Agent…',
     'sec-skill-top':'Skill Top 10',
     'sec-skill-op-dist':'Skill Op Distribution',
@@ -3430,6 +3571,13 @@ const I18N={
     'col-turn':'Turn','col-sk-agentlist':'Referencing Agents','col-sk-sample':'Error sample','col-sk-count':'Calls per turn',
     'col-sk-slowevents':'Slow calls','col-sk-maxlat':'Max latency',
     'sec-sk-errors':'① Skill Execution Errors','sec-sk-repeat':'② Repeated Calls per Turn',
+    'sk-heat-title':'Call distribution · hot / cold tiers',
+    'sk-heat-hint':'Classifies each skill\'s call count in the window into hot (>100) / warm (40–100) / cold (<40) / zero-call (zombie): a skewed distribution means skill assembly is out of touch with real usage — a few skills take most calls. Zombie skills are registered but never called, yet their descriptions still consume context budget every turn; consider retiring or archiving them and watching the cost change.',
+    'sk-heat-hot':'Hot (>100 calls)','sk-heat-mid':'Warm (40–100)','sk-heat-cold':'Cold (<40)','sk-heat-zero':'Zero calls (zombie)',
+    'sk-heat-none':'No skill call data in this window','sk-heat-total':'{n} skills in total',
+    'sk-zombie-found':'{n} zombie skills detected (registered but 0 calls in window):',
+    'sk-zombie-none':'No zombie skills: every registered skill was called in this window',
+    'sk-zombie-act':'Suggest: retire or archive it, then watch context cost change',
     'sec-sk-slow':'③ Slow Calls (over threshold)','sec-sk-calls':'④ Skill Calls (Top 10)',
     'sec-sk-tokens':'⑤ Skill Token Usage','sec-sk-refs':'⑥ Skill Agent References',
     'col-user':'User','col-steps':'Actions','col-outcome':'Result','unit-step':'steps','unit-token':'tok','no-actions':'No action steps',
@@ -3522,10 +3670,14 @@ function tab(name,btn){
   }
   memSyncVisibility();
 }
-// 侧边菜单点击切换页面
-document.querySelectorAll('.nav-item').forEach(b=>{
+// 侧边菜单点击切换页面（设置入口等无 data-page 的 nav-item 不参与页签切换，
+// 其行为由各自 onclick 绑定；键盘 Enter/Space 触发其自身 click 以保持可达性）
+document.querySelectorAll('.nav-item[data-page]').forEach(b=>{
   b.addEventListener('click',()=>tab(b.dataset.page,b));
   b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); tab(b.dataset.page,b); } });
+});
+document.querySelectorAll('.nav-item:not([data-page])').forEach(b=>{
+  b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); b.click(); } });
 });
 // ============ Agent 对话（工作区 + 多 Agent，Agent 即会话） ============
 const agentChat=$('agentChat');
@@ -6312,6 +6464,7 @@ async function importUpload(){
       if(d.errors.length>10) html+=`<br><span>… +${d.errors.length-10}</span>`;
     }
     el.innerHTML=html;
+    loadAgents();   // 导入成功后刷新 Agent 候选列表（新 Agent 立即可选，无效值自动回填第一个）
   }catch(e){ el.innerHTML=`<span class="err">${t('empty-query-fail')(e.message)}</span>`; }
 }
 
@@ -6354,7 +6507,8 @@ async function importFolder(){
         body:JSON.stringify({fileName:f.name,content,llm})});
       const d=await r.json().catch(()=>({}));
       if(!r.ok){
-        doneLines+=`<br><span class="err">[${i+1}/${logs.length}] ${f.name}: http ${d.error||r.status}</span>`;
+        const em=(r.status===401&&d.error&&/unauthorized/i.test(d.error))?t('import-err-401'):('http '+(d.error||r.status));
+        doneLines+=`<br><span class="err">[${i+1}/${logs.length}] ${f.name}: ${em}</span>`;
         render(`[${i+1}/${logs.length}] ${f.name} …`);
         continue;
       }
@@ -6380,6 +6534,7 @@ async function importFolder(){
   if(dupCount>0) h+=`<br><span class="ok">${t('import-log-dup-n')}: ${dupCount}</span>`;
   if(firstErr) h+=`<br><span class="err">${t('import-log-err-sample')}: ${firstErr}</span>`;
   el.innerHTML=doneLines+h;
+  if(okFiles>0) loadAgents();   // 导入成功后刷新 Agent 候选列表
   if(btn) btn.disabled=false;
 }
 
@@ -6429,8 +6584,9 @@ function importSingleSubmit(){
     catch(e){ el.innerHTML=`<span class="err">${t('import-json-parse')}（metadata）</span>`; return; }
   }
   fetch('/api/v1/import/single',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
-    .then(async r=>{ const d=await r.json().catch(()=>({})); if(!r.ok){ el.innerHTML=`<span class="err">${d.error||r.status}</span>`; return; }
+    .then(async r=>{ const d=await r.json().catch(()=>({})); if(!r.ok){ el.innerHTML=`<span class="err">${(r.status===401&&d.error&&/unauthorized/i.test(d.error))?t('import-err-401'):(d.error||r.status)}</span>`; return; }
       el.innerHTML=`<span class="ok">${t('import-done')} — EventId ${d.eventId}</span>`;
+      loadAgents();   // 导入成功后刷新 Agent 候选列表
     })
     .catch(e=>{ el.innerHTML=`<span class="err">${e.message}</span>`; });
 }
@@ -6441,9 +6597,9 @@ function copyApi(){
   const b=document.querySelector('.is-copy');
   navigator.clipboard.writeText(url).then(()=>{
     if(!b) return;
-    const t=t('import-s-copy')==='复制'?'已复制':'Copied';
-    b.textContent=t;
-    setTimeout(()=>{ b.textContent=t==='已复制'?'复制':'Copy'; },1200);
+    const txt=t('import-s-copy')==='复制'?'已复制':'Copied';
+    b.textContent=txt;
+    setTimeout(()=>{ b.textContent=txt==='已复制'?'复制':'Copy'; },1200);
   });
 }
 
@@ -7620,9 +7776,26 @@ async function loadDashboard(force){
 // ============ Agent 分析 ============
 async function loadAgentAnalysis(){
   try{
-    const r=await fetch('/api/v1/agent-analysis?days=30');
+    const [r,fs]=await Promise.all([
+      fetch('/api/v1/agent-analysis?days=30'),
+      fetch('/api/v1/agents/flow-summary?days=30').catch(()=>null) // 流程健康汇总失败不阻塞对比表
+    ]);
     const d=await r.json();
-    renderAgentComparison(d.comparison||[]);
+    const rows=d.comparison||[];
+    try{
+      if(fs&&fs.ok){
+        const sd=await fs.json();
+        const fm={};
+        (sd.agents||[]).forEach(a=>{fm[a.agentId]=a;});
+        rows.forEach(x=>{const f=fm[x.agentId];if(f){
+          x.loopRate=f.loopRate; x.invalidRate=f.invalidRate;
+          x.healthScore=f.healthScore; x.grade=f.grade;
+          x.flowNodeOk=f.nodeOk; x.flowNodeWarn=f.nodeWarn; x.flowNodeBad=f.nodeBad;
+          x.flowTurns=f.turns;
+        }});
+      }
+    }catch(_){/* 汇总缺失时三列显示 -- */}
+    renderAgentComparison(rows);
   }catch(e){console.error('loadAgentAnalysis',e)}
 }
 
@@ -7639,6 +7812,9 @@ const AGENT_COMP_ACC={
   upd:r=>agentCompPct(r.updates||0,r.events||0),
   exp:r=>agentCompPct(r.expires||0,r.events||0),
   skillPct:r=>agentCompPct(r.skillEvents||0,r.events||0),
+  loopRate:r=>r.loopRate==null?-Infinity:r.loopRate,
+  invalidRate:r=>r.invalidRate==null?-Infinity:r.invalidRate,
+  healthScore:r=>r.healthScore==null?-Infinity:r.healthScore,
   lastActive:r=>r.lastActive?new Date(r.lastActive).getTime():-Infinity
 };
 function agentCompRowHtml(r){
@@ -7648,6 +7824,16 @@ function agentCompRowHtml(r){
   const expRate=agentCompPct(r.expires||0,total).toFixed(1)+'%';
   const skillPct=agentCompPct(r.skillEvents||0,total).toFixed(1)+'%';
   const last=r.lastActive?new Date(r.lastActive).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}):'--';
+  // 流程健康三列（循环率/无效操作率/健康分）：窗口内无 turn 显示 --
+  const loopRate=r.loopRate==null?'--':(r.loopRate*100).toFixed(1)+'%';
+  const loopHot=r.loopRate!=null&&r.loopRate>0.08;
+  const invalidRate=r.invalidRate==null?'--':(r.invalidRate*100).toFixed(1)+'%';
+  const invalidHot=r.invalidRate!=null&&r.invalidRate>0.10;
+  const grade=r.grade||'warn';
+  const hsCell=r.healthScore==null
+    ?'<span style="color:var(--text-dim)">--</span>'
+    :`<span class="ac-pill ac-pill-${grade}">${r.healthScore}</span><span class="ac-grade">${t('grade-'+grade)}</span>`;
+  const hsTip=t('ac-health-tip').replace('{ok}',r.flowNodeOk??'-').replace('{warn}',r.flowNodeWarn??'-').replace('{bad}',r.flowNodeBad??'-');
   const aid=(r.agentId||'').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
   return `<tr class="ac-row" data-agent="${aid}">
     <td style="white-space:normal;word-break:break-all"><span class="ac-toggle" title="${t('ac-toggle-title')}" onclick="toggleAgentSessions(this,'${aid}')">▸</span>${r.agentId}</td>
@@ -7659,6 +7845,9 @@ function agentCompRowHtml(r){
     <td style="color:var(--color-green)">${updRate}</td>
     <td style="color:var(--color-yellow)">${expRate}</td>
     <td style="color:var(--color-purple)">${skillPct}</td>
+    <td title="${t('ac-loop-rate-tip')}" style="${loopHot?'color:var(--color-red);font-weight:600':'color:var(--text-dim)'}">${loopRate}</td>
+    <td title="${t('ac-invalid-rate-tip')}" style="${invalidHot?'color:var(--color-red);font-weight:600':'color:var(--text-dim)'}">${invalidRate}</td>
+    <td title="${hsTip}">${hsCell}</td>
     <td style="font-size:11px;color:var(--text-dim)">${last}</td>
   </tr>`;
 }
@@ -7669,7 +7858,7 @@ function renderAgentComparison(rows){
 }
 function renderAgentCompTable(){
   const tb=$('agentCompBody');
-  if(!agentCompData.length){tb.innerHTML=`<tr><td colspan="10" class="empty">${t('analysis-empty')}</td></tr>`;return}
+  if(!agentCompData.length){tb.innerHTML=`<tr><td colspan="13" class="empty">${t('analysis-empty')}</td></tr>`;return}
   let rows=[...agentCompData];
   const acc=AGENT_COMP_ACC[agentCompSort.key];
   if(acc){
@@ -7718,13 +7907,13 @@ function toggleAgentSessions(btn,agentId){
   btn.textContent='▾';
   const detail=document.createElement('tr');
   detail.className='ac-detail';
-  detail.innerHTML=`<td colspan="10"><div class="empty">${t('loading')}</div></td>`;
+  detail.innerHTML=`<td colspan="13"><div class="empty">${t('loading')}</div></td>`;
   tr.insertAdjacentElement('afterend',detail);
   fetch(`/api/v1/agents/${encodeURIComponent(agentId)}/session-comparison`)
     .then(r=>r.json()).then(d=>{
       const rows=d.sessions||[];
-      if(!rows.length){ detail.innerHTML=`<td colspan="10"><div class="empty">${t('empty-no-data')}</div></td>`; return; }
-      detail.innerHTML=`<td colspan="10">
+      if(!rows.length){ detail.innerHTML=`<td colspan="13"><div class="empty">${t('empty-no-data')}</div></td>`; return; }
+      detail.innerHTML=`<td colspan="13">
         <table class="data-table ac-sess-table">
           <thead><tr>
             <th>Session</th>
@@ -7756,7 +7945,7 @@ function toggleAgentSessions(btn,agentId){
         </table>
       </td>`;
     })
-    .catch(()=>{ detail.innerHTML=`<td colspan="10"><div class="empty">${t('empty-query-fail')}</div></td>`; btn.textContent='▸'; });
+    .catch(()=>{ detail.innerHTML=`<td colspan="13"><div class="empty">${t('empty-query-fail')}</div></td>`; btn.textContent='▸'; });
 }
 
 // ============ Skill 分析（六指标结构） ============
@@ -7815,6 +8004,8 @@ async function loadSkillAnalysis(){
   renderSkillErr(prob['skill-error']||[]);
   renderSkillRepeat(prob['skill-repeat']||[]);
   renderSkillSlow(prob['skill-slow']||[]);
+  // 调用分布 · 冷热分层（含僵尸 Skill 检测）
+  renderSkillHeat(metrics);
   // KPI 六卡
   const sum=k=>metrics.reduce((s,x)=>s+(+x[k]||0),0);
   const max=k=>metrics.reduce((m,x)=>Math.max(m,+x[k]||0),0);
@@ -7869,6 +8060,52 @@ function renderSkillRefs(rows){
     <td>${(+x.callCount||0).toLocaleString()}</td>
   </tr>`).join('');
 }
+/** 调用分布 · 冷热分层：按调用次数分四档（高频>100 / 中频 40-100 / 低频<40 / 零调用僵尸）；
+ *  僵尸 = 已注册技能（全局 + 各工作区）中窗口内 0 次调用的 —— 挂载即占上下文，纯支出型负载。 */
+async function renderSkillHeat(metrics){
+  const el=$('skillHeatDist'), zbox=$('skillZombieBox');
+  if(!el) return;
+  const HOT=100, MID=40;
+  const called=metrics.filter(x=>+x.callCount>0);
+  const nHot=called.filter(x=>+x.callCount>HOT).length;
+  const nMid=called.filter(x=>+x.callCount>MID&&+x.callCount<=HOT).length;
+  const nCold=called.filter(x=>+x.callCount<=MID).length;
+  let registered=[];
+  try{
+    const g=await fetch('/api/agent/skills',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>[]);
+    (g||[]).forEach(s=>registered.push({name:s.name,id:s.id,scope:t('skill-t-scope-global')}));
+    const wss=await fetch('/api/agent/workspaces',{credentials:'same-origin'}).then(r=>r.json()).catch(()=>[]);
+    await Promise.all((wss||[]).map(w=>fetch('/api/agent/workspaces/'+encodeURIComponent(w.id)+'/skills',{credentials:'same-origin'})
+      .then(r=>r.json()).then(ls=>(ls||[]).forEach(s=>registered.push({name:s.name,id:s.id,scope:w.name||w.id}))).catch(()=>{})));
+  }catch(e){console.error('skill registry',e)}
+  const calledNames=new Set(metrics.map(x=>x.skill));
+  const zombies=registered.filter(s=>!calledNames.has(s.id)&&!calledNames.has(s.name));
+  const total=nHot+nMid+nCold+zombies.length;
+  if(!total){el.innerHTML='<div class="empty">'+t('sk-heat-none')+'</div>';zbox.innerHTML='';return;}
+  const tiers=[
+    {n:nHot,c:'#1A1A1A',lb:t('sk-heat-hot')},
+    {n:nMid,c:'#7A7A7A',lb:t('sk-heat-mid')},
+    {n:nCold,c:'#CFCFCF',lb:t('sk-heat-cold')},
+    {n:zombies.length,c:'#E5534C',lb:t('sk-heat-zero')}
+  ];
+  el.innerHTML=
+    '<div style="display:flex;height:18px;border-radius:4px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);min-width:240px;max-width:640px">'+
+    tiers.filter(x=>x.n>0).map(x=>'<div style="height:100%;width:'+Math.max(2,Math.round(x.n/total*100))+'%;background:'+x.c+'" title="'+escapeHtml(x.lb)+' · '+x.n+'"></div>').join('')+
+    '</div>'+
+    '<div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:var(--text-secondary)">'+
+    tiers.map(x=>'<span><i style="display:inline-block;width:10px;height:10px;border-radius:2px;background:'+x.c+';margin-right:5px;vertical-align:-1px"></i>'+escapeHtml(x.lb)+' · <b>'+x.n+'</b></span>').join('')+
+    '<span style="color:var(--text-dim)">'+escapeHtml(t('sk-heat-total')).replace('{n}',total)+'</span></div>';
+  if(!registered.length){zbox.innerHTML='';return;}
+  if(!zombies.length){
+    zbox.innerHTML='<div style="font-size:11.5px;color:#1F7A4D;background:#EDF7F1;border:1px solid rgba(31,122,77,0.18);border-radius:8px;padding:8px 12px">'+escapeHtml(t('sk-zombie-none'))+'</div>';
+    return;
+  }
+  zbox.innerHTML='<div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">'+escapeHtml(t('sk-zombie-found')).replace('{n}',zombies.length)+'</div>'+
+    zombies.map(z=>'<div style="display:flex;align-items:center;gap:10px;padding:7px 12px;border:1px solid rgba(229,83,76,0.25);border-left:3px solid #E5534C;border-radius:8px;background:#FDF4F3;margin-bottom:6px">'+
+      '<b style="font-size:12px">'+escapeHtml(z.name||z.id)+'</b>'+
+      '<span style="font-size:10px;color:var(--text-dim);background:rgba(0,0,0,0.05);border-radius:6px;padding:1px 7px;white-space:nowrap">'+escapeHtml(z.scope)+'</span>'+
+      '<span style="font-size:11px;color:#B4372F;margin-left:auto">'+escapeHtml(t('sk-zombie-act'))+'</span></div>').join('');
+}
 /** 指标④：执行报错明细（metadata.status=failed 聚合）。 */
 function renderSkillErr(hits){
   const tb=$('skillErrBody');
@@ -7909,47 +8146,63 @@ function renderSkillSlow(hits){
 }
 
 // ============ 问题分析 ============
+// sev 严重度三档（demo P6 治理语义）：danger=正在发生资损/故障 warn=性能退化/逼近阈值 info=观察提示
+// act 建议动作（治理入口）：A → B → C，未来可接治理层一键执行（压缩接管/归档/熔断）
 const PROBLEM_COLS={
-  'skill-slow':{titleKey:'prob-skill-slow',color:'#E5534C',
+  'skill-slow':{titleKey:'prob-skill-slow',color:'#E5534C',sev:'warn',
+    act:'为该 Skill 设置执行预算 → 定位最慢步骤（Skill 分析页耗时榜）→ 优化或拆分',
     desc:'排查单个 skill 是否卡顿。按 memory_events 层=skill 聚合平均/最大耗时(latency_ms)，超过阈值即定位慢 skill。',
     cols:[['Agent','agentId','text'],[t('problems-col-maxms'),'maxMs','ms'],[t('problems-col-avgms'),'avgMs','ms'],[t('problems-col-events'),'events','count']]},
-  'skill-count':{titleKey:'prob-skill-count',color:'#EAA500',
+  'skill-count':{titleKey:'prob-skill-count',color:'#EAA500',sev:'warn',
+    act:'合并重复技能调用 → 为高频技能加结果缓存 → 评估是否升级为常驻上下文',
     desc:'排查 skill 是否被过度调用。窗口内按层=skill 统计事件数，超阈值说明被反复触发、占用频繁。',
     cols:[['Agent','agentId','text'],[t('problems-col-events'),'events','count']]},
-  'skill-repeat':{titleKey:'prob-skill-repeat',color:'#E08C3C',
+  'skill-repeat':{titleKey:'prob-skill-repeat',color:'#E08C3C',sev:'danger',
+    act:'熔断该技能调用链 → 触发压缩接管打断循环 → 排查触发条件为何反复命中',
     desc:'排查 Agent 决策震荡：单 turn 内同一技能被调用超过阈值，说明调完不满意又反复调、或结果未被正确消费。',
     cols:[['Agent','agentId','text'],['Skill','skill','short'],['Turn','turnId','short'],[t('problems-col-count'),'count','count']]},
-  'skill-error':{titleKey:'prob-skill-error',color:'#E5534C',
+  'skill-error':{titleKey:'prob-skill-error',color:'#E5534C',sev:'danger',
+    act:'打开 trace 回放定位失败步骤 → 修复后重放验证 → 为该技能加失败降级',
     desc:'排查技能执行失败：metadata.status=failed 的调用聚合，附带最近一条报错摘要，定位失败技能与会话。',
     cols:[['Agent','agentId','text'],['Skill','skill','short'],[t('problems-col-errors'),'errCount','count'],[t('problems-col-sample'),'sample','short']]},
-  'tool-token':{titleKey:'prob-tool-token',color:'#B072D8',
+  'tool-token':{titleKey:'prob-tool-token',color:'#B072D8',sev:'danger',
+    act:'瘦身工具输出（截断/分页/字段过滤）→ 高消耗工具迁移至 provider 层 → 设置单次输出上限',
     desc:'排查工具调用是否耗尽 token。按工具维度聚合 token_count 合计，超阈值说明工具入参/结果过大。',
     cols:[['Agent','agentId','text'],[t('problems-col-tokens'),'tokens','tokens'],[t('problems-col-events'),'events','count']]},
-  'turn-token':{titleKey:'prob-turn-token',color:'#1A7AF8',
+  'turn-token':{titleKey:'prob-turn-token',color:'#1A7AF8',sev:'danger',
+    act:'触发压缩接管 → 归档冷记忆 → 检查该 turn 是否混入超长上下文',
     desc:'排查单个 turn 消耗 token 是否过多。按 turn_message_id 聚合 token_count，超阈值定位高消耗回合。',
     cols:[['Agent','agentId','text'],['Turn','turnId','short'],[t('problems-col-tokens'),'metricValue','tokens']]},
-  'turn-count':{titleKey:'prob-turn-count',color:'#D88A4E',
+  'turn-count':{titleKey:'prob-turn-count',color:'#D88A4E',sev:'warn',
+    act:'限制单 turn 步数上限 → 检查 Agent 规划策略是否发散 → 拆分任务目标',
     desc:'排查单个 turn 是否执行过多步骤。按 turn 统计事件数，超阈值说明该回合空转、反复尝试不收敛。',
     cols:[['Agent','agentId','text'],['Turn','turnId','short'],[t('problems-col-events'),'metricValue','count']]},
-  'turn-tool':{titleKey:'prob-turn-tool',color:'#E26D9A',
+  'turn-tool':{titleKey:'prob-turn-tool',color:'#E26D9A',sev:'warn',
+    act:'合并同类工具调用 → 检查工具选择策略 → 将高频工具组合固化为技能',
     desc:'排查单 turn 工具调用是否失控。按 turn 统计工具调用次数，超阈值说明连环调用、找错工具。',
     cols:[['Agent','agentId','text'],['Turn','turnId','short'],[t('problems-col-tools'),'metricValue','count']]},
-  'turn-latency':{titleKey:'prob-turn-latency',color:'#C25BE8',
+  'turn-latency':{titleKey:'prob-turn-latency',color:'#C25BE8',sev:'warn',
+    act:'定位最慢节点（流程分析 S2）→ 优化外部依赖 → 为慢步骤加超时与降级',
     desc:'排查单 turn 整体延迟是否过高。交叉 latency_ms 与工具数、token，超阈值定位卡顿回合。',
     cols:[['Agent','agentId','text'],['Turn','turnId','short'],[t('problems-col-dur'),'metricValue','ms'],[t('problems-col-events'),'events','count']]},
-  'memory':{titleKey:'prob-memory',color:'#D9642B',
+  'memory':{titleKey:'prob-memory',color:'#D9642B',sev:'warn',
+    act:'调大压缩触发阈值 → 治理记忆碎片 → 检查压缩策略是否过于激进',
     desc:'排查记忆是否膨胀、压缩是否过频。读 memory_snapshots 的 total_tokens/compression_count/free_tokens，压缩多或空闲占比过低即告警。',
     cols:[['Agent','agentId','text'],[t('problems-col-samples'),'samples','count'],[t('problems-col-comps'),'maxCompressions','count'],[t('problems-col-freer'),'minFreeRatio','pct']]},
-  'model-slow':{titleKey:'prob-model-slow',color:'#5B8DEF',
+  'model-slow':{titleKey:'prob-model-slow',color:'#5B8DEF',sev:'warn',
+    act:'检查模型服务健康度 → 评估切换更低延迟模型/区域 → 启用流式输出降低感知延迟',
     desc:'排查模型推理是否变慢。取层=model 事件平均 latency_ms，超阈值说明与模型交互僵、拖慢链路。',
     cols:[['Agent','agentId','text'],[t('problems-col-avgms'),'avgMs','ms'],[t('problems-col-maxms'),'maxMs','ms'],[t('problems-col-events'),'events','count']]},
-  'session-token':{titleKey:'prob-session-token',color:'#DA6B3C',
+  'session-token':{titleKey:'prob-session-token',color:'#DA6B3C',sev:'danger',
+    act:'对该会话触发压缩接管 → 归档历史轮次 → 检查会话是否缺少收敛机制',
     desc:'排查会话是否失控膨胀。按 session 聚合 token_count 合计，超阈值说明跨回合持续累积、未收敛。',
     cols:[['Agent','agentId','text'],['Session','sessionId','short'],[t('problems-col-tokens'),'tokens','tokens'],[t('problems-col-events'),'events','count']]},
-  'prompt-share':{titleKey:'prob-prompt-share',color:'#8E8EE0',
+  'prompt-share':{titleKey:'prob-prompt-share',color:'#8E8EE0',sev:'info',
+    act:'压缩系统提示 → 将静态说明移入技能按需检索 → 检查任务提示是否模板膨胀',
     desc:'排查提示词是否挤占上下文。读快照 (system+task)/total 占比，过高说明提示词挤掉记忆与工具空间。',
     cols:[['Agent','agentId','text'],['Session','sessionId','short'],[t('problems-col-samples'),'samples','count'],[t('problems-col-share'),'avgShare','pct']]},
-  'mem-churn':{titleKey:'prob-mem-churn',color:'#3CBF8C',
+  'mem-churn':{titleKey:'prob-mem-churn',color:'#3CBF8C',sev:'warn',
+    act:'检查同 key 反复写的调用方 → 写前读校验（值未变不写）→ 合并短间隔重复写入',
     desc:'排查同一记忆 key 是否被反复覆写。按 memory_key 统计 WRITE/UPDATE 次数，超阈值说明记忆抖动、来回写。',
     cols:[['Agent','agentId','text'],['Key','key','short'],[t('problems-col-writes'),'writes','count'],[t('problems-col-tokens'),'tokens','tokens']]}
 };
@@ -7999,7 +8252,7 @@ async function loadProblems(){
   }
 }
 // ============ 流程分析（Agent/Session 双级切换 + G6 转移图） ============
-let flowGraphInst=null,flowPatternsCache=[],flowNodesCache=[];
+let flowGraphInst=null,flowGraphPinned=null,flowPatternsCache=[],flowNodesCache=[];
 /** Agent 下拉选项追加问题量徽标（flowIssues=问题节点数 / riskHits=敏感命中数）。 */
 function __applyProblemCounts(sel,counts){
   const map={};
@@ -8328,9 +8581,12 @@ function renderFlowGraph(nodes,edges){
   if(dropped.length) console.warn('[flow] 丢弃端点缺失的边 ×'+dropped.length, dropped.slice(0,3));
   edges=edges.filter(e=>nodeIds.has(e.from)&&nodeIds.has(e.to));
   const maxCnt=Math.max(...nodes.map(n=>+n.count||0),1);
-  const HEALTH={ok:{fill:'#E1F5EE',stroke:'#0F6E56',color:'#04342C'},
-                warn:{fill:'#FAEEDA',stroke:'#854F0B',color:'#412402'},
-                bad:{fill:'#FCEBEB',stroke:'#A32D2D',color:'#791F1F'}};
+  // 节点语义着色（操作类型，与图例色点一致）；描边 = 健康度（红=问题 / 橙=预警 / 深操作色=正常）
+  const OP={read:{fill:'#E0F4FA',stroke:'#0E7A96'},
+            write:{fill:'#E1F5EE',stroke:'#0F6E56'},
+            update:{fill:'#ECE7FA',stroke:'#5A3DB8'},
+            expire:{fill:'#FCE9E9',stroke:'#A32D2D'}};
+  const opOf=id=>OP[String(id).split('@')[0]]||{fill:'#EFEFEC',stroke:'#6F6E68'};
   const maxE=Math.max(...edges.map(e=>+e.count||0),1);
   // ---- 之字形（蛇形）布局 ----
   // 1. Kahn 拓扑排序（自环不计入度；同级按出现次数降序），编号即流向：1=头，N=尾
@@ -8370,23 +8626,28 @@ function renderFlowGraph(nodes,edges){
   const hasIn=new Set(edges.filter(e=>e.from!==e.to).map(e=>e.to));
   const hasOut=new Set(edges.filter(e=>e.from!==e.to).map(e=>e.from));
   const gnodes=nodes.map(n=>{
-    const h=HEALTH[n.health]||HEALTH.ok;
+    const op=opOf(n.id);
+    const bad=n.health==='bad', warn=n.health==='warn';
     let label=(seqOf.get(n.id)+1)+'. '+n.label;
     if(!hasIn.has(n.id)) label='▶ '+label;
     if(!hasOut.has(n.id)) label+=' ⏹';
-    return {id:n.id,label,x:pos.get(n.id).x,y:pos.get(n.id).y,size:Math.round(16+18*((+n.count||0)/maxCnt)),
-      style:{fill:h.fill,stroke:h.stroke,lineWidth:n.health==='bad'?2:1.2},
-      labelCfg:{position:'bottom',offset:6,style:{fontSize:10,fill:'#3A3A38'}}};
+    const r=(+n.count||0)/maxCnt;
+    return {id:n.id,label,x:pos.get(n.id).x,y:pos.get(n.id).y,size:Math.round(18+30*r*r),
+      style:{fill:op.fill,stroke:bad?'#A32D2D':(warn?'#B45309':op.stroke),lineWidth:bad?2.5:(warn?2:1.4)},
+      labelCfg:{position:'bottom',offset:6,style:{fontSize:10.5,fill:'#3A3A38',fontWeight:bad?600:400}}};
   });
   const gedges=edges.map(e=>{
-    const w=1+5*((+e.count||0)/maxE);
+    const r=(+e.count||0)/maxE, w=1+5*r;
     const isLoop=e.from===e.to;
+    const col=isLoop?'#A32D2D':opOf(e.from).stroke;   // 边随源节点操作语义着色（循环边恒红虚线）
     const cfg={source:e.from,target:e.to,type:isLoop?'loop':'quadratic',
-      style:{stroke:isLoop?'#A32D2D':'#9A9992',lineWidth:isLoop?Math.max(w,2.5):w,
+      style:{stroke:col,opacity:isLoop?0.9:Math.min(0.9,0.4+0.5*r),
+        lineWidth:isLoop?Math.max(w,2.5):w,lineDash:isLoop?[6,4]:null,
         // G6 4.8.x：endArrow.path 必须是路径数组（Arrow.triangle 调用结果），传函数本身会在 hasArc 解析时崩溃
-        endArrow:{path:G6.Arrow.triangle('0.5',8,8),fill:isLoop?'#A32D2D':'#9A9992'}},
-      label:e.count>=2?String(e.count):'',
-      labelCfg:{style:{fontSize:9,fill:'#5F5E5A',background:{fill:'#fff',padding:[1,3,1,3],radius:2}}}};
+        endArrow:{path:G6.Arrow.triangle('0.5',8,8),fill:col}},
+      label:isLoop?('×'+e.count+' '+t('flow-loop-word')):(e.count>=2?String(e.count):''),
+      labelCfg:{style:{fontSize:isLoop?10:9,fill:isLoop?'#A32D2D':'#5F5E5A',fontWeight:isLoop?600:400,
+        background:{fill:'#fff',padding:[1,3,1,3],radius:2}}}};
     if(isLoop){cfg.loopCfg={position:'top',dist:42,clockwise:false};}
     return cfg;
   });
@@ -8396,15 +8657,14 @@ function renderFlowGraph(nodes,edges){
     defaultNode:{type:'circle'},
     defaultEdge:{type:'quadratic'},
     modes:{default:['drag-canvas','zoom-canvas','drag-node']},
-    edgeStateStyles:{hl:{stroke:'#A32D2D',lineWidth:3.5},dim:{opacity:.1}},
+    edgeStateStyles:{hl:{lineWidth:3.5,opacity:1},dim:{opacity:.08}},
     nodeStateStyles:{dim:{opacity:.15},hl:{stroke:'#A32D2D',lineWidth:3,shadowBlur:10,shadowColor:'rgba(163,45,45,.45)'}},
     fitView:true,fitViewPadding:[36,36,36,36],animate:false
   });
   flowGraphInst.data({nodes:gnodes,edges:gedges});
   try{flowGraphInst.render();}catch(err){console.error('flow graph render',err);}
-  // 节点点击 → 高亮该节点相关边 + 右栏对应卡
-  flowGraphInst.on('node:click',evt=>{
-    const id=evt.item.getID();
+  // 邻接聚焦：聚焦节点（hl）+ 其邻接边，其余变暗。hover 临时聚焦，点击钉住，画布空白处解除
+  const focusNode=id=>{
     flowGraphInst.getEdges().forEach(ed=>{
       const hit=ed.getSource().getID()===id||ed.getTarget().getID()===id;
       flowGraphInst.clearItemStates(ed);
@@ -8414,22 +8674,34 @@ function renderFlowGraph(nodes,edges){
       flowGraphInst.clearItemStates(nd);
       flowGraphInst.setItemState(nd,nd.getID()===id?'hl':'dim',true);
     });
+  };
+  const clearFocus=()=>{
+    flowGraphPinned=null;
+    flowGraphInst.getEdges().forEach(ed=>flowGraphInst.clearItemStates(ed));
+    flowGraphInst.getNodes().forEach(nd=>flowGraphInst.clearItemStates(nd));
+  };
+  // hover 邻接聚焦（Demo 质感）：划过节点即点亮它的路径，离开恢复到钉住节点或全亮
+  flowGraphInst.on('node:mouseenter',evt=>{ focusNode(evt.item.getID()); });
+  flowGraphInst.on('node:mouseleave',()=>{ if(flowGraphPinned) focusNode(flowGraphPinned); else clearFocus(); });
+  // 节点点击 → 钉住聚焦 + 右栏对应卡
+  flowGraphInst.on('node:click',evt=>{
+    const id=evt.item.getID();
+    flowGraphPinned=id;
+    focusNode(id);
     const card=$('flowIssue-'+CSS.escape(id));
     if(card) card.scrollIntoView({behavior:'smooth',block:'nearest'});
     // 问题节点：同时打开详情滑块（哪几个 turn、什么问题、上下文）
     const meta=flowNodesCache.find(x=>x.id===id);
     if(meta&&(meta.signals||[]).length) flowOpenIssue(id);
   });
-  flowGraphInst.on('canvas:click',()=>{
-    flowGraphInst.getEdges().forEach(ed=>flowGraphInst.clearItemStates(ed));
-    flowGraphInst.getNodes().forEach(nd=>flowGraphInst.clearItemStates(nd));
-  });
+  flowGraphInst.on('canvas:click',()=>clearFocus());
   }));
 }
 /** 点击流程条目：高亮该路径的边与节点。 */
 function flowFocusPath(i){
   const p=flowPatternsCache[i];
   if(!p||!flowGraphInst) return;
+  flowGraphPinned=null;   // 路径高亮非单节点聚焦，解除钉住让 hover 可接管
   document.querySelectorAll('.flow-pat').forEach(x=>x.classList.remove('hl'));
   const el=$('flowPat'+i); if(el) el.classList.add('hl');
   const nds=(p.path||'').split('→').map(x=>x.replace(/×\d+$/,'')).filter(Boolean); // 去掉游程压缩的 ×N 后缀再匹配节点 id
@@ -8450,6 +8722,7 @@ function flowFocusPath(i){
 function flowFocusIssue(nodeId){
   const g=flowGraphInst;
   if(!g) return;
+  flowGraphPinned=nodeId;   // 与节点点击一致：钉住该节点，hover 离开后恢复此聚焦
   g.getNodes().forEach(nd=>{
     g.clearItemStates(nd);
     g.setItemState(nd,nd.getID()===nodeId?'hl':'dim',true);
@@ -8631,13 +8904,40 @@ function renderFlowIssues(cards){
     </div>`;
   }).join('');
 }
+// 严重度过滤（demo P6 治理入口）：''=全部，缓存最近一次数据避免切换过滤重新请求
+let problemsCache=null, problemSev='';
+function setProblemSev(sev){
+  problemSev=sev;
+  document.querySelectorAll('#sevFilter button').forEach(b=>b.classList.toggle('on',b.dataset.sev===sev));
+  renderProblemCards();
+}
 function renderProblems(d){
+  problemsCache=d;
+  renderProblemCards();
+}
+function renderProblemCards(){
   const grid=$('problemsGrid');
-  const pros=d.problems||[];
+  if(!grid) return;
+  if(!problemsCache){ grid.innerHTML=`<div class="empty problems-loading">${t('problems-loading')}</div>`; return; }
+  const sevRank={danger:0,warn:1,info:2};
+  const sevOfCard=p=>sevRank[(PROBLEM_COLS[p.key]||{}).sev||'info']??99;
+  // 严重度倒排：严重(danger) → 警告(warn) → 提示(info)，同档保持后端原序（sort 稳定）
+  const pros=(problemsCache.problems||[]).filter(p=>!problemSev||((PROBLEM_COLS[p.key]||{}).sev||'info')===problemSev)
+    .sort((a,b)=>sevOfCard(a)-sevOfCard(b));
+  // 严重度汇总计数（按全部 14 类统计，不含过滤）：只计有命中的类
+  const sevN={danger:0,warn:0,info:0};
+  (problemsCache.problems||[]).forEach(p=>{
+    const sev=(PROBLEM_COLS[p.key]||{}).sev||'info';
+    if((p.hits||[]).length) sevN[sev]++;
+  });
+  ['danger','warn','info'].forEach(s=>{
+    const el=$('sevN-'+s); if(el) el.textContent=sevN[s]||'';
+  });
   grid.innerHTML=pros.map(p=>{
-    const meta=PROBLEM_COLS[p.key]||{}; 
+    const meta=PROBLEM_COLS[p.key]||{};
     const title=meta.titleKey?t(meta.titleKey):(p.title||p.key);
     const color=meta.color||'#E5534C';
+    const sev=meta.sev||'info';
     const hits=p.hits||[];
     let body;
     if(!hits.length){
@@ -8653,11 +8953,13 @@ function renderProblems(d){
           <span class="problems-dot" style="background:${color}"></span>
           <span class="problems-name">${escapeHtml(title)}</span>
           <span class="problems-count ${hits.length?'':'ok'}">${hits.length}</span>
+          <span class="sev-pill sev-${sev}">${t('sev-'+sev)}</span>
         </div>
         <span class="problems-th"><span class="pth-label">${t('problems-th-label')}</span>${escapeHtml(p.threshold||'')}</span>
       </div>
       ${meta.desc?`<div class="problems-desc">${escapeHtml(meta.desc)}</div>`:''}
       ${body}
+      ${hits.length&&meta.act?`<div class="problems-act"><span class="pa-label">${t('problems-act-label')}</span><span>${escapeHtml(meta.act)}</span></div>`:''}
     </div>`;
   }).join('');
   if(!grid._copied){

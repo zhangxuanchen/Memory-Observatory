@@ -359,6 +359,13 @@ public class ApiController {
         );
     }
 
+    /** Agent 级流程健康汇总：循环率(S3 汇总)/无效操作率(S7 失败汇总)/健康分——流程分析按节点算的指标汇总回 Agent 维度。
+     *  GET /api/v1/agents/flow-summary?days=30 */
+    @GetMapping("/agents/flow-summary")
+    public Map<String, Object> agentsFlowSummary(@RequestParam(defaultValue = "30") int days) {
+        return flowService.flowSummary(days);
+    }
+
     /** 问题分析：按阈值聚合 8 类可能问题（后端阈值聚合，后续可叠 Agent 精读）。
      *  GET /api/v1/analytics/problems?days=7 */
     @GetMapping("/analytics/problems")

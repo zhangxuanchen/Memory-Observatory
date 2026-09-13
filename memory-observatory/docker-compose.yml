@@ -19,8 +19,10 @@ services:
   mo-server:
     build: ./mo-server
     restart: unless-stopped
-    # OTLP(4318) 与 REST(8080) 均在容器 8080，两个宿主端口映射同一容器端口
-    ports: ["127.0.0.1:4318:8080", "127.0.0.1:8080:8080"]
+    # 仅 OTLP(4318) 直连容器 8080（SDK/上报脚本自带鉴权头）；REST 与页面统一由
+    # mo-dashboard 的 nginx 代理（8080 明文 / 5173 HTTPS，自动注入 MO_API_KEY），
+    # mo-server 不再直接暴露宿主端口，避免直连入口漏带 key 被 401 拦截。
+    ports: ["127.0.0.1:4318:8080"]
     environment:
       # 容器内用户主目录：与下方挂载配合，「选择工作区」浏览器从挂载点开始，
       # ~/.workbench 工作台配置落在挂载目录、容器重建后不丢。
@@ -32,8 +34,9 @@ services:
       MO_DB_USER: ${MO_DB_USER:-mo}
       MO_DB_PASSWORD: ${MO_DB_PASSWORD:-mo}
       # 接口鉴权：设置后 /api/** 与 /v1/** 强制校验 Authorization: Bearer <key>；
-      # 留空为开放模式（仅本地演示）。生产部署务必设置，例如：
-      #   export MO_API_KEY=$(openssl rand -hex 24) && ./install.sh
+      # 留空为开放模式（仅本地演示）。./install.sh 首次运行会自动生成随机密钥
+      # 写入根目录 .env（compose 自动加载，无需手动 export）；生产环境可在
+      # .env 中改为强密钥，或 export MO_API_KEY=<key> 覆盖。
       MO_API_KEY: ${MO_API_KEY:-}
       # Agent AK 落盘加密密钥；留空时首次启动自动生成随机密钥持久化到挂载目录
       # ~/.workbench/.crypto-secret（0600）。生产环境建议显式设置。
@@ -57,9 +60,10 @@ services:
       context: .
       dockerfile: mo-dashboard/Dockerfile
     restart: unless-stopped  # Docker/开机重启后自动拉起
-    # 仅绑定本机回环：工作台可读写家目录文件，不对局域网/公网暴露；
-    # 远程访问需自行改绑定并评估风险（届时 nginx 的自动注入也会对该入口生效）。
-    ports: ["127.0.0.1:5173:443"]
+    # 8080(明文 HTTP) 与 5173(HTTPS) 双入口，均绑定本机回环：工作台可读写家目录
+    # 文件，不对局域网/公网暴露；远程访问需自行改绑定并评估风险（届时 nginx 的
+    # 自动注入也会对该入口生效）。
+    ports: ["127.0.0.1:8080:80", "127.0.0.1:5173:443"]
     environment:
       # 传给 nginx 启动模板：浏览器请求未携带 Authorization 时注入该 key，
       # 本机打开 https://localhost:5173 零配置可用；手动携带的 key 原样透传。

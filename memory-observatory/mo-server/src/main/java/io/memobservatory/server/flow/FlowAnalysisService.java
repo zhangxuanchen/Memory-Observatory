@@ -330,6 +330,52 @@ public class FlowAnalysisService {
 
     // ==================== 核心分析 ====================
 
+    /**
+     * Agent 级流程健康汇总：把按节点算的循环参与(S3)/失败率(S7)/健康度汇总回 Agent 维度，
+     * 供 agent-analysis 对比表扩展「循环率 / 无效操作率 / 健康分」三列。
+     * 口径：循环率 = 循环参与操作数 / 总操作数；无效操作率 = 失败操作数 / 总操作数；
+     * 健康分 = 100 − 12×bad 节点 − 4×warn 节点 − min(18, 循环率×60) − min(15, 失败率×75)，
+     * ≥85 优(ok) / 60-84 中(warn) / <60 差(bad)；窗口内无事件返回 null（前端显示 —）。
+     */
+    public Map<String, Object> flowSummary(int days) {
+        List<Map<String, Object>> out = new ArrayList<>();
+        for (Map<String, Object> a : repo.queryAgentComparison()) {
+            String agentId = String.valueOf(a.get("agentId"));
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("agentId", agentId);
+            Model m = analyze(agentId, days, null);
+            long ops = m.totalOps;
+            if (ops == 0) {
+                r.put("loopRate", null);
+                r.put("invalidRate", null);
+                r.put("healthScore", null);
+                r.put("grade", null);
+            } else {
+                double loopRate = m.loopJoinOps / (double) ops;
+                double invalidRate = m.failOps / (double) ops;
+                double score = 100
+                        - m.healthBad * 12.0 - m.healthWarn * 4.0
+                        - Math.min(18, loopRate * 100 * 0.6)
+                        - Math.min(15, invalidRate * 100 * 0.75);
+                score = Math.max(0, Math.min(100, score));
+                r.put("loopRate", Math.round(loopRate * 1000) / 1000.0);
+                r.put("invalidRate", Math.round(invalidRate * 1000) / 1000.0);
+                r.put("healthScore", (int) Math.round(score));
+                r.put("grade", score >= 85 ? "ok" : score >= 60 ? "warn" : "bad");
+            }
+            r.put("nodeOk", m.healthOk);
+            r.put("nodeWarn", m.healthWarn);
+            r.put("nodeBad", m.healthBad);
+            r.put("turns", m.turnTotal);
+            r.put("totalOps", ops);
+            out.add(r);
+        }
+        Map<String, Object> res = new LinkedHashMap<>();
+        res.put("days", days);
+        res.put("agents", out);
+        return res;
+    }
+
     private record Pattern(String seq, long count, long tokens, long latency, boolean loop, String smell,
                            List<String> samples) { }
 
@@ -338,6 +384,9 @@ public class FlowAnalysisService {
         List<Map<String, Object>> edges = new ArrayList<>();
         List<Pattern> patterns = new ArrayList<>();
         String agentId;
+        // agent 级聚合（flowSummary 用）：总操作数 / 失败操作数 / 循环参与操作数 / 节点健康计数 / turn 数
+        long totalOps, failOps, loopJoinOps, turnTotal;
+        int healthOk, healthWarn, healthBad;
     }
 
     private Model analyze(String agentId, int days, String sessionId) {
@@ -379,6 +428,7 @@ public class FlowAnalysisService {
                 continue;
             }
             String pathKey = compressPath(seq); // 连续重复节点游程压缩（node×N），避免长链堆出满屏重复文字
+            boolean[] inLoop = markLoopOps(seq); // agent 级循环率：标记参与循环的操作位置（与 detectLoops 同规则）
             long tk = seq.stream().mapToLong(r -> r.tokens).sum();
             long lt = seq.stream().mapToLong(r -> r.latency).sum();
             patStat.computeIfAbsent(pathKey, k -> new long[3])[0]++;
@@ -393,6 +443,9 @@ public class FlowAnalysisService {
                 nCount.merge(r.node, 1L, Long::sum);
                 nTokens.merge(r.node, r.tokens, Long::sum);
                 nFail.merge(r.node, r.failed ? 1L : 0L, Long::sum);
+                if (inLoop[i]) {
+                    m.loopJoinOps++; // agent 级循环率分母对齐：每个操作步最多计一次，保证 loopJoinOps ≤ totalOps
+                }
                 if (r.latency > 0) {
                     nLat.computeIfAbsent(r.node, k -> new ArrayList<>()).add(r.latency);
                 }
@@ -471,6 +524,13 @@ public class FlowAnalysisService {
             node.put("highSignals", high);
             node.put("evidence", ev);
             node.put("health", high.isEmpty() ? (signals.isEmpty() ? "ok" : "warn") : "bad");
+            switch ((String) node.get("health")) {
+                case "bad" -> m.healthBad++;
+                case "warn" -> m.healthWarn++;
+                default -> m.healthOk++;
+            }
+            m.totalOps += nCount.get(id);
+            m.failOps += fail;
             List<String> samples = new ArrayList<>(nodeTraces.getOrDefault(id, new LinkedHashSet<>()));
             node.put("sampleTraceIds", samples.subList(0, Math.min(5, samples.size())));
             node.put("traceCount", samples.size()); // 含该节点的 turn 数（问题详情滑块用）
@@ -489,6 +549,7 @@ public class FlowAnalysisService {
             m.edges.add(edge);
         }
         m.edges.sort(Comparator.comparingLong(x -> -(Long) x.get("count")));
+        m.turnTotal = traces.size();
 
         // 9. 流程模式
         for (Map.Entry<String, long[]> e : patStat.entrySet()) {
@@ -593,6 +654,53 @@ public class FlowAnalysisService {
             }
         }
         return out;
+    }
+
+    /**
+     * 标记 seq 中参与循环的操作位置（agent 级循环率专用，比 detectLoops 更严格）：
+     * 长度 1：同节点连续游程 ≥ loopMinRepeats → 整段均为空转操作；
+     * 长度 2..loopWindow：同一模式「背靠背连续重复」≥ loopMinRepeats 次 → 标记全部覆盖位置。
+     * 要求连续相邻是为了把「分散的正常重复调用」与「陷入循环的空转操作」区分开，
+     * 保证比率反映真实病态空转占比（每步最多计一次，恒 ≤ 1）。
+     */
+    private boolean[] markLoopOps(List<Rec> seq) {
+        boolean[] mark = new boolean[seq.size()];
+        // 长度 1 游程
+        int run = 1;
+        for (int i = 1; i <= seq.size(); i++) {
+            if (i < seq.size() && seq.get(i).node.equals(seq.get(i - 1).node)) {
+                run++;
+            } else {
+                if (run >= loopMinRepeats) {
+                    for (int k = i - run; k < i; k++) {
+                        mark[k] = true;
+                    }
+                }
+                run = 1;
+            }
+        }
+        // 长度 2..loopWindow：模式背靠背连续重复 ≥ loopMinRepeats 次
+        for (int len = 2; len <= loopWindow; len++) {
+            int i = 0;
+            while (i + len <= seq.size()) {
+                String k = seq.subList(i, i + len).stream().map(r -> r.node).collect(Collectors.joining("→"));
+                int rep = 1;
+                while (rep < loopMinRepeats && i + (rep + 1) * len <= seq.size()
+                        && seq.subList(i + rep * len, i + (rep + 1) * len).stream().map(r -> r.node)
+                                .collect(Collectors.joining("→")).equals(k)) {
+                    rep++;
+                }
+                if (rep >= loopMinRepeats) {
+                    for (int p = i; p < i + rep * len; p++) {
+                        mark[p] = true;
+                    }
+                    i += rep * len; // 跳过已标记段
+                } else {
+                    i++;
+                }
+            }
+        }
+        return mark;
     }
 
     /** 预置四条坏味道（设计文档 §3.3）：压缩风暴 / 检索打转 / 读写抖动 / 遗忘风暴。 */

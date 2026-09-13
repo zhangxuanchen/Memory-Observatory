@@ -395,9 +395,17 @@ public class WriteController {
                 .build();
     }
 
-    @SuppressWarnings("unchecked")
     private Map<String, String> parseMetadata(Object raw) {
         Map<String, String> out = new LinkedHashMap<>();
+        if (raw == null) return out;
+        // JSON 导入时 metadata 已反序列化为 Map 对象，直接遍历；
+        // xlsx 等字符串形式（JSON 文本单元格）再走 Jackson 解析。
+        if (raw instanceof Map) {
+            for (Map.Entry<?, ?> e : ((Map<?, ?>) raw).entrySet()) {
+                out.put(String.valueOf(e.getKey()), e.getValue() == null ? null : String.valueOf(e.getValue()));
+            }
+            return out;
+        }
         String s = str(raw);
         if (s == null || s.isBlank()) return out;
         try {

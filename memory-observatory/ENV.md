@@ -27,9 +27,9 @@ docker compose up -d   # 修改 .env 后需重建容器才能生效
 
 所有 API 请求的口令，三处使用方需保持一致：
 
-- **浏览器访问**：`https://localhost:5173` 本机访问已由 nginx 自动注入 `.env` 中的值，零配置；从其他设备/客户端访问时，在侧边栏「访问密钥」弹窗填入同一值
+- **浏览器访问**：`http://localhost:8080` 与 `https://localhost:5173` 本机访问已由 nginx 自动注入 `.env` 中的值，零配置；从其他设备/客户端访问时，在侧边栏「访问密钥」弹窗填入同一值
 - **上报脚本 / SDK**：请求头 `Authorization: Bearer <MO_API_KEY>`
-- **后端直连**（`https://localhost:8080`）：需自行携带请求头，不经 nginx 注入
+- **后端直连**（`http://localhost:4318`，OTLP/SDK 专用）：需自行携带请求头，不经 nginx 注入
 
 置空（`MO_API_KEY=`）为开放模式，仅适合本地演示。
 
