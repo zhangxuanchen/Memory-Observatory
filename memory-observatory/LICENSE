@@ -19,3 +19,25 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---------------------------------------------------------------------------
+SCOPE / EXCEPTION
+
+The MIT License above applies to this project as a whole, with one exception:
+
+  laya-backend/   (Apache License, Version 2.0 — see laya-backend/LICENSE)
+
+Files in that directory, most notably server.py, are original code of this
+project adapted from java/backend/server.py — a file authored by the same
+author in a working copy of the third-party "laya" project. That source file
+was never committed upstream and does not exist in the upstream repository;
+laya is a runtime dependency of this project, not an ancestor of this code.
+
+Apache-2.0 was chosen for that directory to stay consistent with the laya
+ecosystem. No additional restrictions are imposed on any third-party work.
+
+"laya" and "Convai Innovations" are names/trademarks of their respective
+owners. This project is not affiliated with, sponsored by, or endorsed by the
+laya project or Convai Innovations.
+
+Third-party runtime dependencies are listed in THIRD_PARTY_NOTICES.md.

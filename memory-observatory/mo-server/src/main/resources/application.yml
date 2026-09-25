@@ -81,6 +81,37 @@ mo:
       s3-loop-join-ratio: 0.30  # S3 循环参与：节点循环参与占比超过该值
       s7-fail-ratio: 0.10       # S7 失败率：节点失败操作占比超过该值
       smell-forget-ratio: 0.30  # 遗忘风暴：EXPIRE 占 trace 操作数比例超过该值
+  # ===== 用量监测阈值（Excel 积分消耗导入，UsageController）=====
+  usage:
+    large-credits: 10         # 单条大额：积分 >= 该值
+    short-prompt-len: 30      # 短提问高扣费：提问字符数 <= 该值
+    short-burn-credits: 2     #   且积分 >= 该值
+    burst-min-count: 5        # 请求风暴：同一客户端同一分钟请求数 >= 该值
+    spike-ratio: 3.0          # 小时尖峰：小时消耗 > 小时均值 × 该倍数
+    spike-min-credits: 50     #   且小时消耗 >= 该值（避免小基数误报）
+  # ===== 语义过滤层（laya 判别式决策引擎，本地自托管，33ms/次）=====
+  # 作用：对确定层（阈值/规则/正则）的命中做语义确认，剔除假阳性。默认保留，只在高置信判假阳性时剔除。
+  # 后端由 mo-server 启动时自动拉起（Python 进程），已在运行则自动复用；起不来则自动降级，不影响告警。
+  # 详见 LAYA-INTEGRATION.md
+  semantic:
+    enabled: ${MO_SEMANTIC_ENABLED:true}      # 总开关；置 false 则完全回到纯规则行为
+    auto-start-backend: true                  # 后端不可达时，用项目自带的 laya-backend 在本机拉起
+    backend-dir: ${MO_LAYA_BACKEND_DIR:}      # 项目自带的 laya 后端目录；留空按 ../laya-backend → laya-backend 探测
+    python: ""                                # 解释器路径；留空按 <backend-dir>/.venv/bin/python → python3 探测
+    auto-bootstrap: ${MO_LAYA_AUTO_BOOTSTRAP:true}   # 本机无 venv 时后台自举（建 venv + 装 laya）；不阻塞启动
+    pip-index-url: ${MO_PIP_INDEX_URL:https://pypi.tuna.tsinghua.edu.cn/simple}  # 自举用 pip 源
+    bootstrap-timeout-seconds: 1200           # 自举超时上限（秒），要覆盖 torch 下载
+    base-url: ${LAYA_BASE_URL:http://127.0.0.1:8770}   # 容器内由 compose 注入 http://laya-backend:8770
+    preload: english,multilingual             # 预加载 checkpoint；留空则懒加载（首次请求有冷启动延迟）
+    device: ""                                # cpu / mps / cuda；留空自动（macOS Apple Silicon 选 mps）
+    ready-timeout-seconds: 180                # 等待「本机拉起」的后端就绪上限（秒）
+    external-wait-seconds: 900                # 等待「外部后端」就绪上限（秒）；后台等，不阻塞应用启动
+    hf-endpoint: ${HF_ENDPOINT:https://hf-mirror.com}  # 权重下载端点；官方 huggingface.co 在部分网络下不可达，默认走镜像
+    top-n: 20                                 # 单次最多送检条数（延迟闸门），超出的候选直接保留
+    timeout-ms: 5000                          # 单条判定 HTTP 超时
+    threshold-risk: 0.95                      # 内容风险：漏报不可逆，最保守
+    threshold-problem: 0.65                   # 问题分析：漏报代价低，可激进
+    threshold-loop: 0.75                      # 流程分析循环
 
 logging:
   level:

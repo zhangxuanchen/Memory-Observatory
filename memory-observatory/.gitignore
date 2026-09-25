@@ -38,6 +38,14 @@ keys.json
 .DS_Store
 Thumbs.db
 
+# ===== 本地工作文档（不提交）=====
+.workbuddy/
+LAYA-INTEGRATION.md
+LAYA-SEMANTIC-FILTER.md
+OBSERVABILITY-COMPARISON.md
+POSITIONING-COMPARISON.md
+scripts/check-laya.py
+
 # ===== 前端依赖（如有本地构建）=====
 node_modules/
 dist/

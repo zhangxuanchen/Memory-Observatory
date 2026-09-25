@@ -286,7 +286,14 @@ MO_API_KEY="..." docker compose up -d
 ```
 memory-observatory/
 ├── install.sh                     # 一键安装启动（预检/构建/健康检查/输出指引）
-├── docker-compose.yml             # postgres + mo-server + mo-dashboard 编排
+├── docker-compose.yml             # postgres + laya-backend + mo-server + mo-dashboard 编排
+├── laya-backend/                  # 语义过滤推理后端（本项目自有代码，Apache-2.0）
+│   ├── server.py                  #   精简 HTTP 后端（/health + /api/predict）
+│   ├── requirements.txt           #   laya==0.3.6（运行时从 PyPI 装，不随仓库分发）
+│   ├── Dockerfile                 #   容器镜像（CPU torch + 国内源 + HF 镜像）
+│   ├── LICENSE                    #   Apache-2.0 全文（本目录适用许可）
+│   └── NOTICE                     #   来源 / 许可 / 名称使用 / 运行时依赖说明
+├── scripts/                       # 运维脚本（check-laya / setup-laya-backend / mo-static-sync 等）
 ├── mo_sdk/                        # Python 采集 SDK（core/collector/exporter/interceptors）
 ├── examples/
 │   ├── otel_demo.py               # OTLP 上报演示
@@ -299,6 +306,7 @@ memory-observatory/
 │       ├── java/io/memobservatory/
 │       │   ├── server/            # 观测域：api / receiver / ingest / storage
 │       │   │                      #   model / excel / flow（流程分析）/ risk / security
+│       │   │                      #   semantic（laya 语义过滤层）
 │       │   └── agentloop/         # 工作台域：
 │       │       ├── workbench/     #   多 Agent 编排（经理/员工、SSE 对话、思考树）
 │       │       ├── workflow/      #   角色化工作流引擎（门禁验收）
@@ -339,4 +347,17 @@ python examples/otel_demo.py
 
 ## License
 
-[MIT License](./LICENSE) — 可自由使用、修改、分发与商用，保留版权声明即可。
+本项目整体为 [MIT License](./LICENSE) — 可自由使用、修改、分发与商用，保留版权声明即可。
+
+**一处例外**：`laya-backend/` 目录按 **Apache License 2.0** 分发（与 laya 生态保持一致），
+许可证全文与说明见 [`laya-backend/LICENSE`](./laya-backend/LICENSE) 与
+[`laya-backend/NOTICE`](./laya-backend/NOTICE)。两许可证均为宽松型、互相兼容。
+
+> `laya-backend/server.py` 是**本项目自有代码**，改编自同一作者在 laya 工作副本中编写的
+> `java/backend/server.py`（该文件从未提交到上游仓库）。laya 是本项目的**运行依赖**，
+> 不是本代码的来源。
+
+> **名称与商标**：laya 与 Convai Innovations 是其各自权利人的名称/商标，本项目对名称的
+> 使用仅为指明技术依赖与来源；本项目与 laya 官方不存在隶属、赞助或背书关系。
+
+其余第三方依赖及其许可证见 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)。

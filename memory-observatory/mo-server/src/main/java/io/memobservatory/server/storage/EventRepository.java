@@ -1537,6 +1537,43 @@ public class EventRepository {
         }, args.toArray());
     }
 
+    // ==================== 语义过滤层：问题分析所需的内容补取 ====================
+
+    /**
+     * 取某个 turn 的文本上下文（用户输入 + 该 turn 内事件摘要拼接）。
+     *
+     * <p>问题分析的命中行（{@code turnHit} 与各 repo 聚合行）只有数字指标，没有可判断的内容；
+     * 语义确认必须先把内容捞出来，否则 laya 看不到任何文本。取不到时返回空 Map，
+     * 调用方据此跳过该候选（保留，不猜）。
+     */
+    public Map<String, String> queryTurnText(String agentId, String sessionId, String turnId) {
+        if (agentId == null || agentId.isBlank() || turnId == null || turnId.isBlank()) {
+            return Map.of();
+        }
+        StringBuilder sql = new StringBuilder(
+                "SELECT MAX(metadata->>'turn_user') AS turn_user, " +
+                "string_agg(DISTINCT NULLIF(memory_summary, ''), ' | ') AS summaries " +
+                "FROM memory_events WHERE agent_id = ? AND metadata->>'turn_message_id' = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(agentId);
+        args.add(turnId);
+        if (sessionId != null && !sessionId.isBlank()) {
+            sql.append(" AND session_id = ?");
+            args.add(sessionId);
+        }
+        return jdbc.query(sql.toString(), rs -> {
+            if (!rs.next()) {
+                return Map.of();
+            }
+            Map<String, String> m = new LinkedHashMap<>();
+            String user = rs.getString("turn_user");
+            String sums = rs.getString("summaries");
+            m.put("turnUser", user == null ? "" : user);
+            m.put("summary", sums == null ? "" : sums);
+            return m;
+        }, args.toArray());
+    }
+
     // ==================== 问题分析 · Harness 维度（H 组）====================
 
     /** H1. 模型推理延迟过高：layer=model 事件平均耗时超阈值的 Agent（harness 与模型交互僵）。 */

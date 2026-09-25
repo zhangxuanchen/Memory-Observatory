@@ -84,6 +84,13 @@
             <artifactId>poi-ooxml-full</artifactId>
             <version>5.2.5</version>
         </dependency>
+        <!-- POI 5.2.5 传递依赖钉在 commons-io 2.15.0，但 commons-compress 1.27.1
+             需要 2.16+ 的 FileTimes.isUnixTime(FileTime)，显式覆盖为 2.16.1 -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.16.1</version>
+        </dependency>
         <!-- 解析 OTLP JSON 用 Jackson（spring-boot 自带，无需单独声明）
              jackson-dataformat-yaml：解析 .workbench/skill/*.yaml 能力包（spring-boot 托管版本） -->
         <dependency>

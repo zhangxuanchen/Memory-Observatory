@@ -61,6 +61,35 @@ CREATE TABLE IF NOT EXISTS import_log_files (
     imported_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- 请求用量记录（Excel 导入：RequestID/积分消耗/User Prompt/模型/客户端/时间）
+-- 不对 request_id 加唯一约束：同 RequestID 出现多条本身就是「重复扣费」异常证据，需保留可查；
+-- 防重复导入靠 import_usage_files 的文件 MD5 指纹。
+CREATE TABLE IF NOT EXISTS request_usage (
+    id            BIGSERIAL PRIMARY KEY,
+    request_id    TEXT NOT NULL,
+    credits       DOUBLE PRECISION NOT NULL,
+    prompt        TEXT,
+    model         TEXT,
+    client        TEXT,
+    request_time  TIMESTAMPTZ NOT NULL,
+    file_name     TEXT,
+    imported_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_ru_time  ON request_usage(request_time);
+CREATE INDEX IF NOT EXISTS idx_ru_reqid ON request_usage(request_id);
+CREATE INDEX IF NOT EXISTS idx_ru_model ON request_usage(model);
+
+-- 已导入用量 Excel 的 MD5 指纹（同内容文件不重复导入）
+CREATE TABLE IF NOT EXISTS import_usage_files (
+    md5          VARCHAR(32) PRIMARY KEY,
+    file_name    TEXT,
+    total        INTEGER NOT NULL DEFAULT 0,
+    inserted     INTEGER NOT NULL DEFAULT 0,
+    skipped      INTEGER NOT NULL DEFAULT 0,
+    error_count  INTEGER NOT NULL DEFAULT 0,
+    imported_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 -- TimescaleDB 转换：启用扩展 + 转 hypertable，全部失败在此吞掉，普通 PG 不受影响
 DO $$
 BEGIN

@@ -1,0 +1,8 @@
+# MemoryObservatory 自带的 laya 推理后端 —— 运行依赖
+#
+# laya 从 PyPI 安装，**不依赖 laya 源码仓库**。
+# 它自身会拉 transformers / safetensors / huggingface_hub / numpy / torch。
+# torch 由 Dockerfile 单独预装 CPU 版（避免 PyPI 默认版拖入数 GB CUDA 运行库），
+# 这里重复声明只是为了让本机 venv 场景也能一条命令装齐。
+
+laya==0.3.6

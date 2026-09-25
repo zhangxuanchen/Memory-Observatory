@@ -16,6 +16,30 @@ services:
       timeout: 3s
       retries: 10
 
+  # laya 语义判定后端（本地推理，不产生 API 费用）。
+  # 后端脚本随本仓库分发（laya-backend/），是本项目自有代码，改编自 laya 工作副本中
+  # 未入库的 java/backend/server.py（非第三方作品的衍生）。
+  # 该目录按 Apache-2.0 分发（与 laya 生态一致）：许可全文见 laya-backend/LICENSE，
+  # 来源与名称使用说明见 laya-backend/NOTICE；镜像内为 /licenses/。
+  # laya 本体只从 PyPI 安装，不依赖 laya 源码仓库。
+  # 首次启动会预检并补下 ~1.5GB 权重到 mo-laya-weights，之后重建容器不用重下。
+  laya-backend:
+    build: ./laya-backend
+    restart: unless-stopped
+    # 仅绑本机回环：容器间走服务名，这个映射只为方便本机直接调试后端
+    ports: ["127.0.0.1:8770:8770"]
+    environment:
+      # 官方 huggingface.co 在部分网络下不可达，默认走镜像
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+    volumes: ["mo-laya-weights:/data/hf"]
+    healthcheck:
+      # 首次要下权重 + 加载两个 checkpoint，start_period 给足 10 分钟
+      test: ["CMD-SHELL", "python -c \"import urllib.request as u,sys; sys.exit(0 if u.urlopen('http://127.0.0.1:8770/health',timeout=3).status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 40
+      start_period: 600s
+
   mo-server:
     build: ./mo-server
     restart: unless-stopped
@@ -33,6 +57,12 @@ services:
       MO_DB_URL: jdbc:postgresql://postgres:5432/mo
       MO_DB_USER: ${MO_DB_USER:-mo}
       MO_DB_PASSWORD: ${MO_DB_PASSWORD:-mo}
+      # 语义层：laya 后端在同一个 compose 网络里，走服务名访问。
+      # 容器内的 mo-server 不负责拉起后端（它拉起的是 compose 里的这个服务），
+      # 只等它就绪 + 做一次中文自检；拿不到就 fail-open，不影响现有告警。
+      MO_SEMANTIC_ENABLED: ${MO_SEMANTIC_ENABLED:-true}
+      LAYA_BASE_URL: http://laya-backend:8770
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
       # 接口鉴权：设置后 /api/** 与 /v1/** 强制校验 Authorization: Bearer <key>；
       # 留空为开放模式（仅本地演示）。./install.sh 首次运行会自动生成随机密钥
       # 写入根目录 .env（compose 自动加载，无需手动 export）；生产环境可在
@@ -47,6 +77,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # 只等它启动，不等健康：laya-backend 首次要补下权重（数分钟），
+      # 让它阻塞 mo-server 启动没有意义。mo-server 侧会等后端就绪，
+      # 期间语义层处于 fail-open（保留全部候选），应用本身照常可用。
+      laya-backend:
+        condition: service_started
     volumes:
       # 宿主机目录挂载（隐私注意）：
       # 默认挂载【整个家目录】，工作台文件浏览器与工作区 Agent 可读写其中全部文件，
@@ -74,3 +109,5 @@ services:
 volumes:
   mo-pg: {}
   mo-certs: {}
+  # laya 权重缓存（~1.5GB）：持久化后重建容器/更新镜像都不用重下
+  mo-laya-weights: {}

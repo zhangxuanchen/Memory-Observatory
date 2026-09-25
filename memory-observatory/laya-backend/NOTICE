@@ -1,0 +1,78 @@
+Memory Observatory — laya 语义过滤后端
+=====================================
+
+本目录（laya-backend/）为 Memory Observatory 自有代码，随本仓库分发。
+放置本文件是为了把「来源、许可、名称使用」三件事一次性说清。
+
+
+一、来源
+--------
+
+server.py 改编自 java/backend/server.py —— 同一作者在 laya 工作副本中编写的
+后端脚本。
+
+**该源文件从未提交到上游 laya 仓库**：
+
+    $ git -C <laya> log --oneline --follow -- java/backend/server.py
+    （无输出）
+    $ git -C <laya> ls-files java/
+    （无输出）
+    $ git -C <laya> status --short
+    ?? java/
+
+即上游仓库只跟踪 laya/、tests/、research/scripts/、assets/、setup.py；
+java/、demo/ 均为本地未入库目录。因此本目录内容**不是第三方作品的衍生代码**，
+不存在 Apache-2.0 第 4 条意义上的「保留他人声明」义务。
+
+本目录与 laya 项目的关系是**依赖关系**，不是派生关系：
+
+  - 调用 laya 的公开 API（Router / Agent / questions 契约）——接口、事实性信息
+    不受版权保护；
+  - 运行时安装 laya 包（PyPI）、下载其模型权重（HuggingFace）。
+
+修改内容（相对 java/backend/server.py）：
+
+  1. 只保留 GET /health 与 POST /api/predict 两个端点；删除测试台界面
+     （ui.html）、PRESETS / SAMPLES、/v1/predict、/v1/preload、/api/route、
+     /api/meta、GET / 等；
+  2. 新增启动时的权重预检与补下（ensure_weights）；
+  3. 默认设置 HF_ENDPOINT 镜像端点；
+  4. 统一请求校验与错误响应结构。
+
+Dockerfile、requirements.txt、本 NOTICE 为部署而新增。
+
+
+二、许可
+--------
+
+本目录（含 server.py）按 **Apache License 2.0** 分发，全文见本目录 LICENSE。
+选择与 laya 生态一致，也避免日后把 java/ 上游化时再改一次。
+
+仓库其余部分为 **MIT License**。两许可证均为宽松型，互相兼容；边界说明见
+根目录 LICENSE 的 SCOPE / EXCEPTION 段与 README 的 License 一节。
+
+原作品之上不附加任何额外限制（Apache-2.0 §4 允许，本目录亦无额外条款）。
+
+
+三、名称与商标
+--------------
+
+laya 与 Convai Innovations 是其各自权利人的名称/商标（Apache-2.0 §6 不授予商标
+许可）。本目录对这些名称的使用**仅为指明技术依赖与来源**。
+
+本项目（Memory Observatory）与 laya 官方**不存在**隶属、赞助、背书或任何形式的
+官方关联；发布、分发或宣传时不得暗示其官方认可，也不得表述为「官方 Java SDK」
+「官方后端」等。
+
+
+四、运行时依赖（不随本仓库分发）
+--------------------------------
+
+  laya            Apache-2.0        PyPI 包，非自回归决策引擎
+  torch           BSD-3-Clause      推理运行时（容器内为 CPU 版）
+  transformers    Apache-2.0        模型加载
+  huggingface_hub Apache-2.0        权重下载与本地预检
+  模型权重        Apache-2.0        来自 convaiinnovations/laya，模型卡标注
+                                    commercial-use（可商用）
+
+完整列表见根目录 THIRD_PARTY_NOTICES.md。

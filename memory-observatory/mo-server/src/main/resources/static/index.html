@@ -159,6 +159,15 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 .sev-warn{color:#B26A00;background:rgba(255,167,38,.16)}
 .sev-info{color:#1565C0;background:rgba(21,101,192,.10)}
 .problems-act{margin-top:auto;padding:7px 10px;border-radius:8px;background:rgba(0,0,0,.035);font-size:11.5px;line-height:1.5;color:var(--text-primary)}
+/* laya 语义分类：卡片级分布 chips + 行内标签 */
+.sem-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.sem-row-label{font-size:10.5px;color:var(--text-dim);letter-spacing:.04em;text-transform:uppercase;flex-shrink:0}
+.sem-chip{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:999px;background:rgba(15,110,86,.08);border:1px solid rgba(15,110,86,.22);font-size:11px;color:#0F6E56;white-space:nowrap}
+.sem-chip b{font-variant-numeric:tabular-nums;font-weight:700}
+.sem-chip.plain{background:rgba(0,0,0,.04);border-color:rgba(0,0,0,.12);color:var(--text-secondary)}
+.sem-tag{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:999px;background:rgba(15,110,86,.08);border:1px solid rgba(15,110,86,.2);font-size:10.5px;color:#0F6E56;white-space:nowrap}
+.sem-tag em{font-style:normal;color:rgba(15,110,86,.6);font-size:9.5px;font-variant-numeric:tabular-nums}
+td.sem-td{white-space:nowrap;width:1%}
 .pa-label{font-weight:600;color:var(--text-secondary);margin-right:6px}
 /* —— 流程分析 —— */
 .flow-pat{padding:9px 11px;border:1px solid var(--border,#D8D6CC);border-radius:8px;cursor:pointer;background:#fff;transition:border-color .15s,box-shadow .15s}
@@ -997,6 +1006,10 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
 /* 新建会话：宽度不变(min(540px,92vw))，高度随窗口动态填满，内容区自适应滚动 */
 #agentNewModal{top:20px;bottom:20px;height:auto;max-height:none;transform:translateX(-50%)}
 #agentNewModal .modal-path{flex:1;min-height:0;overflow:auto}
+/* 用量 Excel 列映射弹框：表格较宽，放宽容器；下拉列窄而固定 */
+#usageMapModal{width:min(720px,94vw)}
+#usageMapTable th:nth-child(1),#usageMapTable td:nth-child(1){width:36px;text-align:center}
+#usageMapTable select{height:28px;font-size:12px;padding:0 4px;border:1px solid var(--border-glass);border-radius:6px;background:transparent;color:var(--text-primary);max-width:150px}
 .modal-head{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;
   font-size:13px;font-weight:700;border-bottom:1px solid var(--border-glass);background:transparent}
 .modal-path{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:12px}
@@ -1115,6 +1128,10 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     <div class="nav-item" data-page="risk" tabindex="0">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5L13.5 3.5v4c0 3.5-2.3 6-5.5 7-3.2-1-5.5-3.5-5.5-7v-4L8 1.5z"/><path d="M8 5v3.2M8 10.6h.01"/></svg>
       <span data-i18n="nav-risk">内容风险监测</span>
+    </div>
+    <div class="nav-item" data-page="usage" tabindex="0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 13.5V9M6 13.5V5M10 13.5V7.5M14 13.5V2.5"/><path d="M2 13.5h12"/></svg>
+      <span data-i18n="nav-usage">用量监测</span>
     </div>
     <div class="nav-section-label" data-i18n="nav-import">数据导入 · Import</div>
     <div class="nav-item" data-page="import" tabindex="0">
@@ -1641,6 +1658,57 @@ body{font-family:var(--font-sans);background:var(--bg-canvas);color:var(--text-p
     </div>
   </div>
 </section>
+
+<!-- ============ PAGE: 用量监测 ============ -->
+<section class="page" id="page-usage" aria-label="用量监测">
+  <div class="section-card analysis-full" style="margin-bottom:14px">
+    <div class="section-title" style="flex-wrap:wrap;gap:8px">
+      <span data-i18n="usage-title">用量监测 · 积分消耗异常检测</span>
+      <div style="margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <input type="file" id="usageFile" accept=".xlsx" style="display:none" onchange="usageImport(this)">
+        <button class="btn" onclick="document.getElementById('usageFile').click()" data-i18n="usage-import-btn">导入 Excel</button>
+        <button class="btn ghost" onclick="loadUsage()" data-i18n="usage-refresh-btn">刷新</button>
+      </div>
+    </div>
+    <div class="section-hint" data-i18n="usage-hint">导入平台导出的「积分消耗明细」Excel（列：RequestID / 积分消耗 / User Prompt / 模型 / 客户端 / 时间），自动检测五类异常：单条大额、短提问高扣费（提问很短却扣费较高）、重复扣费（同 RequestID 多条）、请求风暴（同一客户端同一分钟高频请求）、小时尖峰（某小时消耗远超均值）。同一文件重复导入按 MD5 自动跳过；阈值可在 application.yml 的 mo.usage 节调整。</div>
+    <div id="usageImportResult" style="display:none;margin-top:8px;font-size:12px;color:var(--text-secondary)"></div>
+  </div>
+  <div id="usageEmpty" class="empty" style="display:none" data-i18n="usage-empty">暂无用量数据：点击右上角「导入 Excel」上传积分消耗明细</div>
+  <div id="usageBody" style="display:none">
+    <div id="usageStats" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div class="section-card analysis-full" style="margin-bottom:12px">
+      <div class="section-title"><span data-i18n="usage-hours-title">小时消耗分布</span></div>
+      <div id="usageHours" class="hour-chart"></div>
+      <div id="usageHoursAxis" class="hour-axis"></div>
+    </div>
+    <div class="section-card analysis-full" style="margin-bottom:12px">
+      <div class="section-title"><span data-i18n="usage-anoms-title">异常消耗明细</span><em id="usageAnomCount" style="font-size:10px;color:var(--text-dim);font-style:normal;margin-left:auto"></em></div>
+      <div id="usageAnoms" style="display:flex;flex-direction:column;gap:10px;max-height:640px;overflow:auto"></div>
+    </div>
+    <div class="section-card analysis-full">
+      <div class="section-title"><span data-i18n="usage-records-title">最近明细</span><em id="usageRecordCount" style="font-size:10px;color:var(--text-dim);font-style:normal;margin-left:auto"></em></div>
+      <div style="overflow:auto;max-height:420px"><table class="data-table" id="usageRecords"></table></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 用量 Excel 列映射弹框 ============ -->
+<div class="modal-mask" id="usageMapMask" style="display:none" onclick="usageMapClose()"></div>
+<div class="modal" id="usageMapModal" style="display:none">
+  <div class="modal-head">
+    <span data-i18n="usage-map-title">指定 Excel 列含义</span>
+    <button class="drawer-close" onclick="usageMapClose()" title="关闭">✕</button>
+  </div>
+  <div class="modal-path"><span id="usageMapInfo"></span></div>
+  <div style="padding:0 16px 4px;font-size:12px;color:var(--text-secondary)" data-i18n="usage-map-hint">为每一列选择它代表的字段；选「不导入」的列将被忽略。RequestID、积分消耗、时间三列必须指定。</div>
+  <div style="max-height:46vh;overflow:auto;padding:4px 16px">
+    <table class="data-table" id="usageMapTable"></table>
+  </div>
+  <div class="modal-foot">
+    <button class="btn" onclick="usageMapConfirm()" data-i18n="usage-map-ok">开始导入</button>
+    <button class="btn ghost" onclick="usageMapClose()" data-i18n="usage-map-cancel">取消</button>
+  </div>
+</div>
 
 <!-- ============ PAGE: 数据导入 ============ -->
 <section class="page" id="page-import" aria-label="数据导入">
@@ -2843,6 +2911,15 @@ const I18N={
     'problems-th-label':'判定阈值：',
     'sev-danger':'严重','sev-warn':'警告','sev-info':'提示',
     'problems-act-label':'建议动作：',
+    // laya 语义分类标签（问题分析 issue_kind；内容风险的 leak_context 实测不可用，未启用）
+    'sem-title':'语义分类',
+    'sem-unclassified':'未分类',
+    'sem-conf':'置信',
+    'cat-pathological_loop':'病态空转',
+    'cat-resource_waste':'资源浪费',
+    'cat-tool_malfunction':'工具故障',
+    'cat-memory_pressure':'记忆压力',
+    'cat-legitimate_cost':'任务本身所需',
     'problems-sev-all':'全部','problems-sev-danger':'严重','problems-sev-warn':'警告','problems-sev-info':'提示',
     'problems-hint':'严重度分层治理入口：红色「严重」= 正在发生资损或性能退化（技能循环、Token 烧穿、请求失败），需立即处理；橙色「警告」= 趋势正逼近阈值（变慢、调用膨胀），建议近期处理；蓝色「提示」= 观察项。每张命中卡底部直接给出「A → B → C」建议动作，作为从观测跨到治理的入口——未来接入治理层后可一键执行压缩接管、归档、熔断。',
     'prob-skill-slow':'Skill 执行时间过长',
@@ -2896,6 +2973,62 @@ const I18N={
     'risk-drawer-rule':'命中规则',
     'risk-drawer-snippet':'命中片段（已脱敏）',
     'risk-drawer-mark':'敏感信息',
+    'nav-usage':'用量监测',
+    'page-usage':'用量监测',
+    'usage-title':'用量监测 · 积分消耗异常检测',
+    'usage-hint':'导入平台导出的「积分消耗明细」Excel（列：RequestID / 积分消耗 / User Prompt / 模型 / 客户端 / 时间），自动检测五类异常：单条大额、短提问高扣费（提问很短却扣费较高）、重复扣费（同 RequestID 多条）、请求风暴（同一客户端同一分钟高频请求）、小时尖峰（某小时消耗远超均值）。同一文件重复导入按 MD5 自动跳过；阈值可在 application.yml 的 mo.usage 节调整。',
+    'usage-import-btn':'导入 Excel',
+    'usage-refresh-btn':'刷新',
+    'usage-empty':'暂无用量数据：点击右上角「导入 Excel」上传积分消耗明细',
+    'usage-hours-title':'小时消耗分布',
+    'usage-anoms-title':'异常消耗明细',
+    'usage-records-title':'最近明细',
+    'usage-kpi-total':'总消耗',
+    'usage-kpi-reqs':'请求数',
+    'usage-kpi-avg':'平均单条',
+    'usage-kpi-max':'最大单条',
+    'usage-kpi-anom':'异常命中',
+    'usage-anom-large':'单条大额',
+    'usage-anom-large-desc':'单条请求消耗积分达到告警阈值',
+    'usage-anom-blank':'短提问高扣费',
+    'usage-anom-blank-desc':'提问内容很短，却产生了较高积分消耗',
+    'usage-anom-dup':'重复扣费',
+    'usage-anom-dup-desc':'同一 RequestID 出现多条扣费记录（重试/平台异常）',
+    'usage-anom-burst':'请求风暴',
+    'usage-anom-burst-desc':'同一客户端在同一分钟内发起高频请求',
+    'usage-anom-spike':'小时尖峰',
+    'usage-anom-spike-desc':'某小时消耗远超全部小时的平均水平',
+    'usage-anom-none':'未发现异常消耗',
+    'usage-col-time':'时间',
+    'usage-col-model':'模型',
+    'usage-col-client':'客户端',
+    'usage-col-credits':'积分',
+    'usage-col-prompt':'提问摘要',
+    'usage-imp-ok':'导入完成：新增 {0}，跳过 {1}，失败 {2}',
+    'usage-imp-dup':'该文件已导入过（内容相同），已自动跳过',
+    'usage-imp-fail':'导入失败：{0}',
+    'usage-imp-eg':'示例：第 {0} 行 {1}',
+    'usage-map-title':'指定 Excel 列含义',
+    'usage-map-info':'共 {0} 列 · {1} 行数据',
+    'usage-map-ai':'已由 AI 智能识别部分列含义，请核对',
+    'usage-map-hint':'为每一列选择它代表的字段；选「不导入」的列将被忽略。RequestID、积分消耗、时间三列必须指定。',
+    'usage-map-head':'表头',
+    'usage-map-sample':'样例（第一行）',
+    'usage-map-target':'表示什么',
+    'usage-map-col':'列',
+    'usage-map-skip':'不导入',
+    'usage-map-ok':'开始导入',
+    'usage-map-cancel':'取消',
+    'usage-map-loading':'解析表头中…',
+    'usage-map-importing':'导入中…',
+    'usage-map-dup':'有两列同时选择了「{0}」，一列只能对应一个字段',
+    'usage-map-need':'请为 RequestID、积分消耗、时间 三项各指定一列',
+    'usage-f-requestid':'RequestID',
+    'usage-f-credits':'积分消耗',
+    'usage-f-prompt':'提问内容',
+    'usage-f-model':'模型',
+    'usage-f-client':'客户端',
+    'usage-f-time':'时间',
     'ff-agent':'Agent',
     'ff-session':'Session',
     'ff-window':'窗口',
@@ -3256,6 +3389,15 @@ const I18N={
     'problems-th-label':'Threshold:',
     'sev-danger':'Critical','sev-warn':'Warning','sev-info':'Info',
     'problems-act-label':'Suggested actions: ',
+    // laya semantic category labels (problem issue_kind; risk leak_context measured unusable, not enabled)
+    'sem-title':'Semantic',
+    'sem-unclassified':'Unclassified',
+    'sem-conf':'conf',
+    'cat-pathological_loop':'Pathological loop',
+    'cat-resource_waste':'Resource waste',
+    'cat-tool_malfunction':'Tool malfunction',
+    'cat-memory_pressure':'Memory pressure',
+    'cat-legitimate_cost':'Legitimate cost',
     'problems-sev-all':'All','problems-sev-danger':'Critical','problems-sev-warn':'Warning','problems-sev-info':'Info',
     'problems-hint':'Severity-tiered governance entry: red "Critical" = active cost burn or degradation (skill loops, token burnout, failures) — handle now; orange "Warning" = trend approaching threshold (slowing, call inflation) — handle soon; blue "Info" = observation. Each hit card ends with "A → B → C" suggested actions, the bridge from observability to governance — one-click compaction takeover / archival / circuit-breaking once the governance layer is wired in.',
     'prob-skill-slow':'Skill too slow',
@@ -3309,6 +3451,62 @@ const I18N={
     'risk-drawer-rule':'Rule',
     'risk-drawer-snippet':'Hit snippet (masked)',
     'risk-drawer-mark':'Sensitive',
+    'nav-usage':'Usage Monitor',
+    'page-usage':'Usage Monitor',
+    'usage-title':'Usage Monitor · Credit Anomaly Detection',
+    'usage-hint':'Import the exported credit usage Excel (columns: RequestID / Credits / User Prompt / Model / Client / Time). Five anomaly rules are checked automatically: large single charge, short-prompt high burn, duplicate billing (same RequestID), request burst (same client within one minute) and hourly spike. Re-importing the same file is skipped by MD5; tune thresholds under mo.usage in application.yml.',
+    'usage-import-btn':'Import Excel',
+    'usage-refresh-btn':'Refresh',
+    'usage-empty':'No usage data yet: click "Import Excel" to upload the credit usage file',
+    'usage-hours-title':'Hourly Credit Distribution',
+    'usage-anoms-title':'Anomaly Details',
+    'usage-records-title':'Recent Records',
+    'usage-kpi-total':'Total Credits',
+    'usage-kpi-reqs':'Requests',
+    'usage-kpi-avg':'Avg / Request',
+    'usage-kpi-max':'Max Single',
+    'usage-kpi-anom':'Anomalies',
+    'usage-anom-large':'Large Charge',
+    'usage-anom-large-desc':'A single request consumed credits above the alert threshold',
+    'usage-anom-blank':'Short Prompt High Burn',
+    'usage-anom-blank-desc':'Very short prompt but relatively high credit consumption',
+    'usage-anom-dup':'Duplicate Billing',
+    'usage-anom-dup-desc':'Multiple billing records share the same RequestID (retry / platform issue)',
+    'usage-anom-burst':'Request Burst',
+    'usage-anom-burst-desc':'Same client sent high-frequency requests within one minute',
+    'usage-anom-spike':'Hourly Spike',
+    'usage-anom-spike-desc':'One hour consumed far above the average hourly level',
+    'usage-anom-none':'No anomaly detected',
+    'usage-col-time':'Time',
+    'usage-col-model':'Model',
+    'usage-col-client':'Client',
+    'usage-col-credits':'Credits',
+    'usage-col-prompt':'Prompt Summary',
+    'usage-imp-ok':'Import done: inserted {0}, skipped {1}, failed {2}',
+    'usage-imp-dup':'This file has been imported before (same content), skipped',
+    'usage-imp-fail':'Import failed: {0}',
+    'usage-imp-eg':'Example: row {0} {1}',
+    'usage-map-title':'Map Excel Columns',
+    'usage-map-info':'{0} columns · {1} rows',
+    'usage-map-ai':'AI has recognized some columns, please review',
+    'usage-map-hint':'Choose what each column means; columns set to "Skip" are ignored. RequestID, Credits and Time are required.',
+    'usage-map-head':'Header',
+    'usage-map-sample':'Sample (row 1)',
+    'usage-map-target':'Meaning',
+    'usage-map-col':'Column',
+    'usage-map-skip':'Skip',
+    'usage-map-ok':'Start Import',
+    'usage-map-cancel':'Cancel',
+    'usage-map-loading':'Reading header…',
+    'usage-map-importing':'Importing…',
+    'usage-map-dup':'Two columns are mapped to "{0}"; each field can only be assigned once',
+    'usage-map-need':'Please assign a column for RequestID, Credits and Time',
+    'usage-f-requestid':'RequestID',
+    'usage-f-credits':'Credits',
+    'usage-f-prompt':'Prompt',
+    'usage-f-model':'Model',
+    'usage-f-client':'Client',
+    'usage-f-time':'Time',
     'ff-agent':'Agent',
     'ff-session':'Session',
     'ff-window':'Window',
@@ -3656,6 +3854,7 @@ function tab(name,btn){
   else if(name==='problems') loadProblems();
   else if(name==='data-analysis') loadDataAnalysis();
   else if(name==='risk') loadRisk();
+  else if(name==='usage') loadUsage();
   else if(name==='agent'){
     agentPoll();
     // 页面从隐藏变为可见后容器高度才定型，补滚到底部，让初始化直接定位到最后一条消息
@@ -8206,6 +8405,26 @@ const PROBLEM_COLS={
     desc:'排查同一记忆 key 是否被反复覆写。按 memory_key 统计 WRITE/UPDATE 次数，超阈值说明记忆抖动、来回写。',
     cols:[['Agent','agentId','text'],['Key','key','short'],[t('problems-col-writes'),'writes','count'],[t('problems-col-tokens'),'tokens','tokens']]}
 };
+/**
+ * 语义分类标签文案。后端新增枚举而前端未同步词条时，原样显示 key 而不是空白——便于发现漏配。
+ */
+function semLabel(k){const s=t('cat-'+k);return s===('cat-'+k)?k:s}
+/** 卡片级「语义分类」分布 chips，来源 p.semantic.categories（只在真的有分类结果时才渲染）。 */
+function semChips(sem){
+  if(!sem||!sem.classified) return '';
+  const cats=Object.entries(sem.categories||{});
+  if(!cats.length) return '';
+  return `<div class="sem-row"><span class="sem-row-label">${t('sem-title')}</span>`+
+    cats.map(([k,n])=>`<span class="sem-chip">${escapeHtml(semLabel(k))}<b>${n}</b></span>`).join('')+`</div>`;
+}
+/** 行内分类标签，来源命中行 h.semanticCategory；无分类时返回空串（调用方据此决定是否加列）。 */
+function semTag(h){
+  const k=h&&h.semanticCategory;
+  if(!k) return '';
+  const c=+h.semanticCategoryConfidence;
+  return `<span class="sem-tag">${escapeHtml(semLabel(k))}`+
+    (c>0?`<em>${Math.round(c*100)}%</em>`:'')+`</span>`;
+}
 function probCell(acc,type,row){
   let v=row[acc];
   if(v==null||v===''||v===undefined) return '<td>--</td>';
@@ -8309,6 +8528,168 @@ const RISK_SEV_STYLE={
   high:{bg:'#A32D2D',fg:'#fff',label:{zh:'高危',en:'High'}},
   medium:{bg:'#C97A2B',fg:'#fff',label:{zh:'中危',en:'Medium'}}
 };
+// ============ 用量监测（Excel 积分消耗导入 + 异常检测） ============
+const USAGE_ANOM_SEV={
+  large:{bg:'#FEE2E2',fg:'#991B1B',key:'usage-anom-large',desc:'usage-anom-large-desc'},
+  blankBurn:{bg:'#FEE2E2',fg:'#991B1B',key:'usage-anom-blank',desc:'usage-anom-blank-desc'},
+  duplicates:{bg:'#FFEDD5',fg:'#9A3412',key:'usage-anom-dup',desc:'usage-anom-dup-desc'},
+  bursts:{bg:'#FEF3C7',fg:'#92400E',key:'usage-anom-burst',desc:'usage-anom-burst-desc'},
+  spikes:{bg:'#FEF3C7',fg:'#92400E',key:'usage-anom-spike',desc:'usage-anom-spike-desc'}
+};
+function usageKpi(label,val){
+  return `<div class="kpi-mini"><div class="v">${val}</div><div class="l">${t(label)}</div></div>`;
+}
+function usageTable(headers,rows){
+  return `<div style="overflow:auto"><table class="data-table"><thead><tr>${headers.map(h=>`<th>${t(h)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+function usageCredit(v){const n=Number(v||0);return n%1===0?String(n):n.toFixed(2)}
+async function loadUsage(){
+  let ov,an;
+  try{
+    const [r1,r2]=await Promise.all([fetch('/api/v1/usage/overview'),fetch('/api/v1/usage/anomalies')]);
+    ov=await r1.json();an=await r2.json();
+  }catch(e){console.error('usage load',e);return}
+  const kpi=ov.kpi||{};
+  const total=Number(kpi.cnt||0);
+  $('usageEmpty').style.display=total?'none':'';
+  $('usageBody').style.display=total?'':'none';
+  if(!total){
+    ['usageStats','usageHours','usageHoursAxis','usageAnoms','usageRecords'].forEach(id=>$(id).innerHTML='');
+    return;
+  }
+  // KPI 行
+  $('usageStats').innerHTML=`<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;flex:1">
+    ${usageKpi('usage-kpi-total',usageCredit(kpi.total_credits))}
+    ${usageKpi('usage-kpi-reqs',total)}
+    ${usageKpi('usage-kpi-avg',usageCredit(kpi.avg_credits))}
+    ${usageKpi('usage-kpi-max',usageCredit(kpi.max_credits))}
+    ${usageKpi('usage-kpi-anom',an.total||0)}
+  </div>`;
+  // 小时消耗柱状
+  const hours=ov.byHour||[];
+  if(hours.length){
+    const max=Math.max(1,...hours.map(h=>Number(h.total_credits)||0));
+    $('usageHours').innerHTML=hours.map(h=>{
+      const v=Number(h.total_credits)||0;
+      return `<div class="hour-bar" style="height:${Math.max(2,v/max*100)}%" data-tip="${escapeHtml(h.hour)} · ${usageCredit(v)} 积分 · ${h.cnt} 次"></div>`;
+    }).join('');
+    $('usageHoursAxis').innerHTML=`<span>${escapeHtml(hours[0].hour)}</span><span>${escapeHtml(hours[hours.length-1].hour)}</span>`;
+  }else{
+    $('usageHours').innerHTML=`<div class="empty">-</div>`;$('usageHoursAxis').innerHTML='';
+  }
+  // 异常分组明细
+  const rowsFor=(list,cols)=>list.map(r=>`<tr>${cols.map(c=>`<td>${c(r)}</td>`).join('')}</tr>`).join('');
+  const promptCell=r=>`<span style="white-space:normal;display:block;max-width:420px;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(r.promptSummary||'')}">${escapeHtml(r.promptSummary||'')}</span>`;
+  const creditCell=v=>`<b style="color:var(--color-cyan)">${usageCredit(v)}</b>`;
+  const groups=[
+    ['large',(an.large||[]).length,usageTable(['usage-col-time','usage-col-credits','usage-col-model','usage-col-client','usage-col-prompt'],
+      rowsFor(an.large||[],[r=>escapeHtml(r.time||''),r=>creditCell(r.credits),r=>escapeHtml(r.model||''),r=>escapeHtml(r.client||''),promptCell]))],
+    ['blankBurn',(an.blankBurn||[]).length,usageTable(['usage-col-time','usage-col-credits','usage-col-prompt','usage-col-model','usage-col-client'],
+      rowsFor(an.blankBurn||[],[r=>escapeHtml(r.time||''),r=>creditCell(r.credits),
+        r=>`<span style="white-space:normal;max-width:420px;display:block">${escapeHtml(r.promptSummary||'')} <i style="color:var(--text-dim);font-style:normal">(${r.promptLen??'?'} 字)</i></span>`,
+        r=>escapeHtml(r.model||''),r=>escapeHtml(r.client||'')]))],
+    ['duplicates',(an.duplicates||[]).length,`<div style="overflow:auto"><table class="data-table"><thead><tr><th>RequestID</th><th>${t('usage-anom-dup')}</th><th>${t('usage-kpi-total')}</th><th>First</th><th>Last</th></tr></thead><tbody>${
+      rowsFor(an.duplicates||[],[r=>`<span style="max-width:260px;display:inline-block;overflow:hidden;text-overflow:ellipsis" title="${escapeHtml(r.requestId||'')}">${escapeHtml(r.requestId||'')}</span>`,
+        r=>`<b>${r.cnt}</b> 条`,r=>creditCell(r.totalCredits),r=>escapeHtml(r.firstTime||''),r=>escapeHtml(r.lastTime||'')])}</tbody></table></div>`],
+    ['bursts',(an.bursts||[]).length,`<div style="overflow:auto"><table class="data-table"><thead><tr><th>${t('usage-col-client')}</th><th>${t('usage-col-time')}</th><th>${t('usage-kpi-reqs')}</th><th>${t('usage-kpi-total')}</th></tr></thead><tbody>${
+      rowsFor(an.bursts||[],[r=>escapeHtml(r.client||''),r=>escapeHtml(r.minute||''),r=>`<b>${r.cnt}</b> 次`,r=>creditCell(r.totalCredits)])}</tbody></table></div>`],
+    ['spikes',(an.spikes||[]).length,`<div style="overflow:auto"><table class="data-table"><thead><tr><th>${t('usage-hours-title')}</th><th>${t('usage-kpi-total')}</th><th>${t('usage-kpi-avg')}</th><th>× Ratio</th><th>${t('usage-kpi-reqs')}</th></tr></thead><tbody>${
+      rowsFor(an.spikes||[],[r=>escapeHtml(r.hour||''),r=>creditCell(r.totalCredits),r=>usageCredit(r.avgHourCredits),r=>`<b>×${r.ratio}</b>`,r=>r.cnt])}</tbody></table></div>`]
+  ];
+  const html=groups.filter(g=>g[1]>0).map(([key,n,table])=>{
+    const st=USAGE_ANOM_SEV[key];
+    return `<div style="border:1px solid rgba(0,0,0,.1);border-radius:8px;overflow:hidden">
+      <div style="padding:8px 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-bottom:1px solid rgba(0,0,0,.06)">
+        <span class="rh-sev" style="background:${st.bg};color:${st.fg}">${t(st.key)} × ${n}</span>
+        <span style="font-size:11px;color:var(--text-dim)">${t(st.desc)}</span>
+      </div>${table}</div>`;
+  }).join('');
+  $('usageAnoms').innerHTML=html||`<div class="empty">${t('usage-anom-none')}</div>`;
+  $('usageAnomCount').textContent=(an.total||0)+' hits';
+  // 最近明细表
+  const recs=ov.records||[];
+  $('usageRecordCount').textContent='';
+  try{
+    const r3=await fetch('/api/v1/usage/records?limit=100');
+    const rd=await r3.json();
+    $('usageRecordCount').textContent=(rd.total||0)+' 条';
+    $('usageRecords').innerHTML=usageTable(['usage-col-time','usage-col-credits','usage-col-model','usage-col-client','usage-col-prompt'],
+      (rd.rows||[]).map(r=>`<tr><td>${escapeHtml(r.time||'')}</td><td>${usageCredit(r.credits)}</td><td>${escapeHtml(r.model||'')}</td><td>${escapeHtml(r.client||'')}</td><td>${promptCell(r)}</td></tr>`).join(''));
+  }catch(e){console.error('usage records',e)}
+}
+// ===== 用量 Excel 导入：先预览表头让用户指定列含义，再带 mapping 导入 =====
+let usageMapFile=null;
+function usageFieldLabels(){return{requestId:t('usage-f-requestid'),credits:t('usage-f-credits'),prompt:t('usage-f-prompt'),model:t('usage-f-model'),client:t('usage-f-client'),time:t('usage-f-time')}}
+async function usageImport(input){
+  const f=input.files&&input.files[0];
+  if(!f)return;
+  input.value='';
+  usageMapFile=f;
+  const box=$('usageImportResult');
+  box.style.display='';box.textContent='⏳ '+t('usage-map-loading');
+  try{
+    const fd=new FormData();fd.append('file',f);
+    const r=await fetch('/api/v1/usage/preview',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.error){box.textContent=t('usage-imp-fail',d.error);usageMapFile=null;return}
+    box.style.display='none';
+    usageMapOpen(d);
+  }catch(e){box.textContent=t('usage-imp-fail',e.message);usageMapFile=null}
+}
+function usageMapClose(){$('usageMapMask').style.display='none';$('usageMapModal').style.display='none';usageMapFile=null}
+function usageMapOpen(d){
+  const headers=d.headers||[];
+  const sample=(d.sample&&d.sample[0])||[];
+  const guess=d.mapping||{};
+  const labels=usageFieldLabels();
+  const keys=Object.keys(labels);
+  const opts=i=>{
+    let h=`<option value="-1">${t('usage-map-skip')}</option>`;
+    for(const k of keys)h+=`<option value="${k}"${guess[k]===i?' selected':''}>${labels[k]}</option>`;
+    return h;
+  };
+  let rows='';
+  headers.forEach((h,i)=>{
+    const name=(h!=null&&String(h).trim())?String(h).trim():`${t('usage-map-col')} ${i+1}`;
+    let sv=sample[i]==null?'':String(sample[i]);
+    if(sv.length>18)sv=sv.slice(0,18)+'…';
+    rows+=`<tr><td>${i+1}</td><td>${escapeHtml(name)}</td><td>${escapeHtml(sv)}</td><td><select data-col="${i}">${opts(i)}</select></td></tr>`;
+  });
+  $('usageMapTable').innerHTML=`<thead><tr><th>#</th><th>${escapeHtml(t('usage-map-head'))}</th><th>${escapeHtml(t('usage-map-sample'))}</th><th>${escapeHtml(t('usage-map-target'))}</th></tr></thead><tbody>${rows}</tbody>`;
+  $('usageMapInfo').innerHTML=escapeHtml(t('usage-map-info',headers.length,d.rows??'-'))+(d.aiUsed?` · <span style="color:var(--color-purple)">${escapeHtml(t('usage-map-ai'))}</span>`:'');
+  $('usageMapMask').style.display='';
+  $('usageMapModal').style.display='';
+}
+async function usageMapConfirm(){
+  const labels=usageFieldLabels();
+  const map={};const used={};
+  document.querySelectorAll('#usageMapTable select').forEach(s=>{
+    const v=s.value;
+    if(v==='-1')return;
+    if(used[v]){used[v]='__dup__';return}
+    used[v]=true;map[v]=Number(s.dataset.col);
+  });
+  for(const k of Object.keys(used)){if(used[k]==='__dup__'){alert(t('usage-map-dup',labels[k]));return}}
+  if(map.requestId===undefined||map.credits===undefined||map.time===undefined){alert(t('usage-map-need'));return}
+  const f=usageMapFile;
+  usageMapClose();
+  if(!f)return;
+  const box=$('usageImportResult');
+  box.style.display='';box.textContent='⏳ '+t('usage-map-importing');
+  try{
+    const fd=new FormData();fd.append('file',f);
+    fd.append('mapping',JSON.stringify(map));
+    const r=await fetch('/api/v1/usage/import',{method:'POST',body:fd});
+    const d=await r.json();
+    if(d.error) box.textContent=t('usage-imp-fail',d.error);
+    else if(d.skippedFile) box.textContent=t('usage-imp-dup');
+    else{
+      box.textContent=t('usage-imp-ok',d.inserted??0,d.skipped??0,(d.errors||[]).length)
+        +((d.errors&&d.errors.length)?'  '+t('usage-imp-eg',d.errors[0].row,d.errors[0].message):'');
+    }
+  }catch(e){box.textContent=t('usage-imp-fail',e.message)}
+  loadUsage();
+}
 async function loadRisk(){
   const sel=$('riskAgent');
   if(sel.options.length<=1){
@@ -8939,13 +9320,16 @@ function renderProblemCards(){
     const color=meta.color||'#E5534C';
     const sev=meta.sev||'info';
     const hits=p.hits||[];
+    // 有任一行带分类标签时才加「分类」列，避免无分类时多出一列空白
+    const hasCat=hits.some(h=>h&&h.semanticCategory);
     let body;
     if(!hits.length){
       body=`<div class="problems-ok">${t('problems-empty')}</div>`;
     }else{
       body=`<div class="table-wrap problems-twrap"><table class="data-table problems-table">`+
-        `<thead><tr>${meta.cols.map(c=>`<th>${c[0]}</th>`).join('')}</tr></thead>`+
-        `<tbody>${hits.map(h=>`<tr>${meta.cols.map(c=>probCell(c[1],c[2],h)).join('')}</tr>`).join('')}</tbody></table></div>`;
+        `<thead><tr>${meta.cols.map(c=>`<th>${c[0]}</th>`).join('')}${hasCat?`<th>${t('sem-title')}</th>`:''}</tr></thead>`+
+        `<tbody>${hits.map(h=>`<tr>${meta.cols.map(c=>probCell(c[1],c[2],h)).join('')}`+
+          `${hasCat?`<td class="sem-td">${semTag(h)||`<span style="color:var(--text-dim);font-size:10.5px">${t('sem-unclassified')}</span>`}</td>`:''}</tr>`).join('')}</tbody></table></div>`;
     }
     return `<div class="section-card problems-card">
       <div class="problems-head">
@@ -8958,6 +9342,7 @@ function renderProblemCards(){
         <span class="problems-th"><span class="pth-label">${t('problems-th-label')}</span>${escapeHtml(p.threshold||'')}</span>
       </div>
       ${meta.desc?`<div class="problems-desc">${escapeHtml(meta.desc)}</div>`:''}
+      ${semChips(p.semantic)}
       ${body}
       ${hits.length&&meta.act?`<div class="problems-act"><span class="pa-label">${t('problems-act-label')}</span><span>${escapeHtml(meta.act)}</span></div>`:''}
     </div>`;

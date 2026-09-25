@@ -367,11 +367,20 @@ public class ApiController {
     }
 
     /** 问题分析：按阈值聚合 8 类可能问题（后端阈值聚合，后续可叠 Agent 精读）。
-     *  GET /api/v1/analytics/problems?days=7 */
+     *  GET /api/v1/analytics/problems?days=7&amp;semantic=true
+     *
+     *  <p>semantic=true（默认）时对每类命中做语义确认，剔除「任务本身就需要这么多资源」
+     *  这类假阳性（例如「跑测试的 Agent 用了 30s」不是问题，「客服 Agent 用了 30s」才是）。
+     *
+     *  <p><b>为什么默认开</b>：这是实测中唯一确实产生收益的落点。判据「任务本身复杂」
+     *  vs「病态空转」是纯语义判断，规则/阈值做不到。实测 2/2 正确
+     *  （复杂任务 pFalse=0.805 → 剔除；病态空转 pFalse=0.312 → 保留，阈值 0.65）。
+     *  详见 LAYA-INTEGRATION.md 附·实测记录 D。 */
     @GetMapping("/analytics/problems")
     public Map<String, Object> analyticsProblems(
             @RequestParam(defaultValue = "7") int days,
-            @RequestParam(name = "agent", required = false) String agent) {
+            @RequestParam(name = "agent", required = false) String agent,
+            @RequestParam(defaultValue = "true") boolean semantic) {
         Instant now = Instant.now();
         Instant from = days > 0 ? now.minusSeconds(days * 86400L) : null;
         Instant to = now;
@@ -454,8 +463,66 @@ public class ApiController {
         thresholds.put("promptShareRatio", probPromptRatio);
         thresholds.put("memoryKeyWrites", probKeyWrites);
         result.put("thresholds", thresholds);
-        result.put("problems", problems);
+        result.put("problems", semantic ? semanticFilterProblems(problems) : problems);
         return result;
+    }
+
+    /**
+     * 对问题分析的各类命中做语义确认。
+     *
+     * <p>命中行里通常只有数字指标（tokens / 延迟 / 次数），没有可判断的内容，
+     * 因此按 (agentId, sessionId, turnId) 现查该 turn 的用户输入与事件摘要喂给 laya；
+     * 查不到内容的候选<b>直接保留</b>（不猜）。同一个 turn 在一次请求内只查一次。
+     */
+    private List<Map<String, Object>> semanticFilterProblems(List<Map<String, Object>> problems) {
+        io.memobservatory.server.semantic.ConfirmKind kind =
+                io.memobservatory.server.semantic.ConfirmKind.PROBLEM;
+        Map<String, Map<String, String>> turnCtx = new HashMap<>();
+        for (Map<String, Object> p : problems) {
+            Object raw = p.get("hits");
+            if (!(raw instanceof List<?> list) || list.isEmpty()) {
+                continue;
+            }
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> hits = (List<Map<String, Object>>) list;
+            String key = text(p.get("key"));
+            String threshold = text(p.get("threshold"));
+            var outcome = semanticFilter.filter(hits, kind,
+                    hit -> problemState(hit, key, threshold, turnCtx));
+            p.put("hits", outcome.hits());
+            p.put("hitCount", outcome.hits().size());
+            p.put("semantic", outcome.meta(kind));
+        }
+        return problems;
+    }
+
+    /** 构造问题分析命中行的 laya state；完全没有文本内容可判断时返回 null（该候选保留）。 */
+    private Map<String, Object> problemState(Map<String, Object> hit, String hitType,
+                                             String threshold, Map<String, Map<String, String>> cache) {
+        String agentId = text(hit.get("agentId"));
+        String sessionId = text(hit.get("sessionId"));
+        String turnId = text(hit.get("turnId"));
+        String turnUser = text(hit.get("turnUser"));
+        String summary = text(hit.get("summary"));
+
+        if (turnUser.isBlank() && summary.isBlank() && !turnId.isBlank()) {
+            String ck = agentId + "|" + sessionId + "|" + turnId;
+            Map<String, String> ctx = cache.computeIfAbsent(ck,
+                    k -> repo.queryTurnText(agentId, sessionId, turnId));
+            turnUser = ctx.getOrDefault("turnUser", "");
+            summary = ctx.getOrDefault("summary", "");
+        }
+        if (turnUser.isBlank() && summary.isBlank()) {
+            return null;      // 没有可判断的内容 → 保留，不猜
+        }
+        Map<String, Object> state = new java.util.LinkedHashMap<>();
+        state.put("hit_type", hitType);
+        state.put("threshold", threshold);
+        state.put("observed", text(hit.get("metricValue")));
+        state.put("node", text(hit.get("metric")));
+        state.put("turn_user", truncate(turnUser, 300));
+        state.put("summary", truncate(summary, 500));
+        return state;
     }
 
     /** 组装单个问题结构：key / title / threshold / hitCount / hits。 */
@@ -563,10 +630,113 @@ public class ApiController {
     @Autowired
     private io.memobservatory.server.risk.RiskScanService riskService;
 
+    @Autowired
+    private io.memobservatory.server.semantic.SemanticFilterService semanticFilter;
+
+    @Autowired
+    private io.memobservatory.server.semantic.LayaBackendManager layaBackendManager;
+
+    /**
+     * 弱格式风险规则：靠「关键字 + 值形状」匹配，示例代码 / 占位符 / 文档 / 测试夹具都会命中，
+     * 是假阳性主要来源。强格式规则（云 AK / sk- / ghp_ / 私钥 / JWT 等）零误报，不参与语义过滤。
+     */
+    private static final java.util.Set<String> WEAK_RISK_TYPES =
+            java.util.Set.of("password", "cred-pair", "db-conn", "secret");
+
+    /**
+     * 内容风险监测。
+     *
+     * <p>{@code semantic=true} 时，对弱格式规则的命中做语义确认，剔除「示例 / 占位符 / 文档 /
+     * 测试夹具」这类假阳性；强格式规则的命中原样保留。后端不可达时自动跳过过滤并原样返回
+     * （fail-open），响应里的 {@code semantic.status} 会说明是「真的过滤了」还是「因故障跳过了」。
+     *
+     * <p><b>为什么默认关</b>：实测（见 LAYA-INTEGRATION.md 附·实测记录 C）在当前保守阈值
+     * {@code threshold-risk=0.95} 下，送检候选一条都剔不掉——假阳性的 pFalse 只有 0.806，
+     * 达不到 0.95。也就是说默认开会白付最多 20 次推理（3~7s 延迟）而收益为 0。
+     * 而本场景漏报不可逆，不能为了收益贸然下调阈值。
+     *
+     * <p>开之前应先做两件事：① 给 {@code RiskScanService} 加占位符正则（确定区，
+     * 零误报解决「文档占位符」类）；② 用人工标注数据标定阈值。这也是设计文档 §3.1
+     * 「加开关参数，默认关」的原意。
+     */
     @GetMapping("/agents/{agentId}/risk-scan")
     public Map<String, Object> riskScan(@PathVariable String agentId,
-                                        @RequestParam(defaultValue = "30") int days) {
-        return riskService.scan(agentId, days);
+                                        @RequestParam(defaultValue = "30") int days,
+                                        @RequestParam(defaultValue = "false") boolean semantic) {
+        Map<String, Object> result = riskService.scan(agentId, days);
+        if (!semantic) {
+            return result;
+        }
+        Object raw = result.get("hits");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return result;
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) list;
+        io.memobservatory.server.semantic.ConfirmKind kind =
+                io.memobservatory.server.semantic.ConfirmKind.RISK;
+        var outcome = semanticFilter.filter(hits, kind, ApiController::riskState);
+        result.put("hits", outcome.hits());
+        result.put("total", outcome.hits().size());
+        result.put("semantic", outcome.meta(kind));
+        return result;
+    }
+
+    /** 把一条风险命中映射为 laya 的 state；返回 null 表示该条不参与语义判断（直接保留）。 */
+    private static Map<String, Object> riskState(Map<String, Object> hit) {
+        if (!WEAK_RISK_TYPES.contains(text(hit.get("type")))) {
+            return null;    // 强格式规则零误报，不动
+        }
+        Map<String, Object> state = new java.util.LinkedHashMap<>();
+        state.put("snippet", truncate(text(hit.get("snippet")), 600));
+        state.put("rule_name", text(hit.get("name")));
+        state.put("field", text(hit.get("field")));
+        return state;
+    }
+
+    /**
+     * 语义层状态：前端可据此显示「语义过滤已就绪 / 未就绪」，排障时先看这里。
+     *
+     * <p>{@code multilingualReady=false} 时必须警觉：本项目 Agent 内容以中文为主，
+     * 中文会被路由到 multilingual checkpoint。该值 false 意味着过滤实际未生效，
+     * 而非「没有假阳性」。
+     *
+     * <p>字段含义与排查顺序：
+     * <ul>
+     *   <li>{@code backendReady}——此刻 {@code /health} 可达</li>
+     *   <li>{@code backendUsable}——中文自检通过，即后端与权重都真的可用</li>
+     *   <li>{@code multilingualReady}——中文链路可用（最关键的一项）</li>
+     *   <li>{@code backendOwned}——后端由本进程拉起的（本机形态）；容器形态为 false</li>
+     * </ul>
+     * 后端由容器编排管理时，启动后可能有一段「已在跑但仍在补权重」的窗口，
+     * 此时 {@code backendReady=false} 属正常，语义层处于 fail-open。
+     */
+    @GetMapping("/semantic/status")
+    public Map<String, Object> semanticStatus() {
+        Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("enabled", semanticFilter.isEnabled());
+        m.put("backendReady", semanticFilter.isBackendReady());
+        m.put("backendUsable", layaBackendManager.isBackendUsable());
+        m.put("multilingualReady", layaBackendManager.isMultilingualReady());
+        m.put("backendOwned", layaBackendManager.isOwned());
+        return m;
+    }
+
+    /** 安全取字符串（Map 里取出的值可能为 null）。 */
+    private static String text(Object o) {
+        return o == null ? "" : String.valueOf(o);
+    }
+
+    /**
+     * 截断到 laya 可处理的长度。
+     * laya 的 max_len 为 512/1024 token，超出部分会在 build_sequence 里被静默截断——
+     * 那会悄悄丢掉判断所需的上下文，所以宁可自己显式截断。
+     */
+    private static String truncate(String s, int max) {
+        if (s == null) {
+            return "";
+        }
+        return s.length() <= max ? s : s.substring(0, max);
     }
 
     /**
