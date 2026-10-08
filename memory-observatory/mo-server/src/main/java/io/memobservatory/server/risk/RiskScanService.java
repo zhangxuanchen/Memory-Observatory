@@ -1,5 +1,7 @@
 package io.memobservatory.server.risk;
 
+import io.memobservatory.server.semantic.ConfirmKind;
+import io.memobservatory.server.semantic.SemanticFilterService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -52,13 +55,82 @@ public class RiskScanService {
         "postgres://","mongodb://","redis://","amqp://","user","account"
     };
 
-    public RiskScanService(JdbcTemplate jdbc) { this.jdbc = jdbc; }
+    /**
+     * 弱格式风险规则：靠「关键字 + 值形状」匹配，示例代码 / 占位符 / 文档 / 测试夹具都会命中，
+     * 是假阳性主要来源。强格式规则（云 AK / sk- / ghp_ / 私钥 / JWT 等）零误报，不参与语义过滤。
+     */
+    private static final Set<String> WEAK_RISK_TYPES =
+            Set.of("password", "cred-pair", "db-conn", "secret");
+
+    private final SemanticFilterService semanticFilter;
+
+    public RiskScanService(JdbcTemplate jdbc, SemanticFilterService semanticFilter) {
+        this.jdbc = jdbc;
+        this.semanticFilter = semanticFilter;
+    }
+
+    /** 不做语义过滤（等价于 {@code scan(agentId, days, false)}）。 */
+    public Map<String, Object> scan(String agentId, int days) {
+        return scan(agentId, days, false);
+    }
 
     /**
      * 扫描指定 Agent 近 N 天的会话内容，返回命中列表与分类统计。
      * hits 按时间倒序，最多 200 条；每个事件最多记录 3 个命中。
+     *
+     * <p>{@code semantic=true} 时，对弱格式规则的命中做语义确认，剔除「示例 / 占位符 / 文档 /
+     * 测试夹具」这类假阳性；强格式规则的命中原样保留。后端不可达时自动跳过过滤并原样返回
+     * （fail-open），响应里的 {@code semantic.status} 会说明是「真的过滤了」还是「因故障跳过了」。
+     *
+     * <p><b>为什么默认关</b>：实测（见 LAYA-INTEGRATION.md 附·实测记录 C）在当前保守阈值
+     * {@code threshold-risk=0.95} 下，送检候选一条都剔不掉——假阳性的 pFalse 只有 0.806，
+     * 达不到 0.95。也就是说默认开会白付最多 20 次推理（3~7s 延迟）而收益为 0。
+     * 而本场景漏报不可逆，不能为了收益贸然下调阈值。
      */
-    public Map<String, Object> scan(String agentId, int days) {
+    public Map<String, Object> scan(String agentId, int days, boolean semantic) {
+        Map<String, Object> result = scanRaw(agentId, days);
+        if (!semantic) {
+            return result;
+        }
+        Object raw = result.get("hits");
+        if (!(raw instanceof List<?> list) || list.isEmpty()) {
+            return result;
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> hits = (List<Map<String, Object>>) list;
+        var outcome = semanticFilter.filter(hits, ConfirmKind.RISK, RiskScanService::riskState);
+        result.put("hits", outcome.hits());
+        result.put("total", outcome.hits().size());
+        result.put("semantic", outcome.meta(ConfirmKind.RISK));
+        return result;
+    }
+
+    /** 把一条风险命中映射为 laya 的 state；返回 null 表示该条不参与语义判断（直接保留）。 */
+    private static Map<String, Object> riskState(Map<String, Object> hit) {
+        if (!WEAK_RISK_TYPES.contains(str(hit.get("type")))) {
+            return null;    // 强格式规则零误报，不动
+        }
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("snippet", truncate(str(hit.get("snippet")), 600));
+        state.put("rule_name", str(hit.get("name")));
+        state.put("field", str(hit.get("field")));
+        return state;
+    }
+
+    /**
+     * 截断到 laya 可处理的长度。
+     * laya 的 max_len 为 512/1024 token，超出部分会在 build_sequence 里被静默截断——
+     * 那会悄悄丢掉判断所需的上下文，所以宁可自己显式截断。
+     */
+    private static String truncate(String s, int max) {
+        if (s == null) {
+            return "";
+        }
+        return s.length() <= max ? s : s.substring(0, max);
+    }
+
+    /** 只跑规则，不做语义过滤。 */
+    private Map<String, Object> scanRaw(String agentId, int days) {
         Instant from = days > 0 ? Instant.now().minus(days, ChronoUnit.DAYS) : Instant.EPOCH;
         // ILIKE ANY 预过滤：memory_summary 或用户输入含任一关键字
         StringBuilder likes = new StringBuilder();

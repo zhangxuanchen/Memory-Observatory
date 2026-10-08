@@ -13,5 +13,6 @@
 
     <modules>
         <module>mo-server</module>
+        <module>mo-exoskeleton</module>
     </modules>
 </project>

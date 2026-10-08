@@ -1,0 +1,69 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: mo-exoskeleton
+  datasource:
+    # 与 mo-server 共用同一个库；连接参数走同名环境变量
+    url: ${MO_DB_URL:jdbc:postgresql://localhost:5432/mo}
+    username: ${MO_DB_USER:mo}
+    password: ${MO_DB_PASSWORD:mo}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 5
+  sql:
+    init:
+      # 模块自带的 schema.sql（E1 定案）：启动时建 memory_rules，幂等（IF NOT EXISTS）。
+      mode: always
+      schema-locations: classpath:schema.sql
+      continue-on-error: true
+
+# 记忆外骨骼（L6 能学）参数。默认值即设计文档的起点值（§2.4 / §2.7 / §3.2）。
+mo:
+  exoskeleton:
+    min-support: 30                    # §3.2 最小支撑度：低于它不进候选，只算「不支持」
+    churn-weeks: 4                     # §2.7 churn 观察窗（周）
+    correction-window-minutes: 10      # §2.4 隐式纠正：相邻 turn 的间隔窗口（分钟）
+    correction-similarity: 0.75        # §2.4 隐式纠正：n-gram Jaccard 阈值
+    holdout-ratio: 0.2                 # §2.5 对照组裸跑比例（0.1–0.2 起点值；lab05 取 0.25）
+    audit:                             # §2.6 自动降级 / §2.7 churn：三道限制 + 调度
+      enabled: false                   # 默认关：没配就不跑（§4.7「不能默认给生产加负载」）
+      initial-delay-minutes: 1
+      interval-minutes: 1440           # 一个「评估周期」= 两次相邻审计；默认一天
+      hit-share-max: 0.20              # 限制一：单条规则命中面上限
+      constraint-tol: 0.20             # 限制二：命中组约束项相对对照组的容忍
+      churn-high: 3                    # §2.7：观察窗（churn-weeks）内版本数达到它 → 撤回
+    cards:                             # §4.10 决策卡片
+      cap: 5                           # §4.10.5 排序截断：单轮最多出几张，其余排队
+      expired-visible: false           # 清单默认隐去「已到期未答」的卡（到期只是不再展示，不改状态）
+    tasks:                             # 二级筛选维度：任务类型（session 粒度，LLM 生成）
+      enabled: true
+      max-sessions-per-run: 200        # 每轮最多分类多少个 session（每 session = 1 次 LLM 调用）
+      # 会话摘要送模型的字符上限。2026-10-07 由 4000 上调：本库最大的会话文本也只有 23,544 字符
+      # （795 轮，全是短意图摘要），4000 会把 795 轮的会话压成 21 条、丢掉 98% 的提问——「大而杂」
+      # 会话被判偏的真正原因是抽样饥饿，不是分类逻辑。本机 Ollama 实测 num_ctx=32768（可容 ~21k token），
+      # 3 万字符留足余量，使全量会话都能整段送入（不再触发抽样）。
+      digest-max-chars: 30000
+      timeout-seconds: 180             # 单次 LLM 调用超时（本机 qwen3:latest 是思考模型，长会话易超时）
+      llm:
+        # 空 = 不启用（fail-open，端点如实报告未启用，不阻塞）。
+        # 注意本地跑 mo-exoskeleton 在宿主机上，应指向 http://localhost:11434/v1；
+        # .env 里给容器用的 host.docker.internal 在宿主机上不解析。
+        base-url: ${LLM_BASE_URL:}
+        model: ${LLM_MODEL:}
+        api-key: ${LLM_API_KEY:}
+        # 关掉思考链：Qwen3 等思考模型在中长上下文下会生成数千 token 的推理链，长会话必超时。
+        # Ollama 的 OpenAI 兼容端点用请求体里的 reasoning_effort 控制，取值 none/low/medium/high；
+        # 空 = 不发这个字段（非思考模型无需关，发了反而可能报错）。
+        reasoning-effort: ${LLM_REASONING_EFFORT:none}
+    skills:                            # 技能发现：按任务类型从对话里提炼可复用的工作台技能
+      enabled: true
+      # 样本门槛：该类 turn 数低于它就不提炼，清单里显示为「未达标」。
+      # 与 min-support(30) 同一口径——几条对话里看不出「一类任务的手艺」。
+      min-turns: 30
+      # 每轮最多提炼几个类（每类 = 1 次 LLM 调用），给成本与耗时兜底。
+      max-classes-per-run: 8
+      # 该类对话摘要送模型的字符上限（超了按 turn 均匀抽样，首尾必取）。
+      digest-max-chars: 20000
+      # 复用 mo.exoskeleton.tasks.llm.* 的 LLM 通道；未配置时本能力如实报未启用，不阻塞。

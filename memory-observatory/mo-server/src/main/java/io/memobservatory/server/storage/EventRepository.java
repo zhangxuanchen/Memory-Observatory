@@ -7,6 +7,7 @@ import io.memobservatory.server.model.MemorySnapshot;
 import org.postgresql.util.PGobject;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowCallbackHandler;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
@@ -1668,6 +1669,41 @@ public class EventRepository {
             row.put("lastTs", rs.getTimestamp("last_ts").toInstant().toString());
             return row;
         }, args.toArray());
+    }
+
+    // ==================== 导出（原始事件流，可回灌）====================
+
+    /**
+     * 25. 导出用：按过滤条件读取原始事件行。
+     *
+     * <p>用 {@link RowCallbackHandler} 逐行回调而不是返回 List：导出窗口动辄几十万行，
+     * 先物化成 List 再序列化会把内存打满。调用方在回调里边读边写，内存占用与行数无关。
+     *
+     * <p>只按 ts 升序返回；LIMIT 由调用方按 {@code mo.export.max-rows} 传入，是导出量的硬上限。
+     */
+    public void streamEventsForExport(Instant from, Instant to, String agentId, String sessionId,
+                                      String traceId, int limit, RowCallbackHandler cb) {
+        StringBuilder sql = new StringBuilder("""
+                SELECT event_id, agent_id, session_id, operation, layer, memory_key, memory_summary,
+                       token_count, latency_ms, ts, metadata, trace_id, parent_span_id
+                FROM memory_events WHERE 1 = 1""");
+        List<Object> args = new ArrayList<>();
+        if (agentId != null && !agentId.isBlank()) {
+            sql.append(" AND agent_id = ?");
+            args.add(agentId);
+        }
+        if (sessionId != null && !sessionId.isBlank()) {
+            sql.append(" AND session_id = ?");
+            args.add(sessionId);
+        }
+        if (traceId != null && !traceId.isBlank()) {
+            sql.append(" AND trace_id = ?");
+            args.add(traceId);
+        }
+        appendTime(sql, args, from, to);
+        sql.append(" ORDER BY ts ASC LIMIT ?");
+        args.add(limit);
+        jdbc.query(sql.toString(), cb, args.toArray());
     }
 
     // ==================== Trace 查询（input-contracts §6.4）====================

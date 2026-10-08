@@ -63,6 +63,12 @@ services:
       MO_SEMANTIC_ENABLED: ${MO_SEMANTIC_ENABLED:-true}
       LAYA_BASE_URL: http://laya-backend:8770
       HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      # 记忆外骨骼（mo-exoskeleton）基址：记忆提炼页经 mo-server 转发取数。
+      # 外骨骼已在同一 compose 网络内（见下方 mo-exoskeleton 服务），容器间直连走服务名，
+      # 不再绕宿主机——「随 docker compose up -d 一起就绪」才是常态。
+      # 刻意不 depends_on 它：外骨骼没起来时转发层应如实回 503（不降级成空列表），
+      # 让它拖住 mo-server 启动反而丢掉了这个性质。
+      MO_EXOSKELETON_BASE_URL: ${MO_EXOSKELETON_BASE_URL:-http://mo-exoskeleton:8081}
       # 接口鉴权：设置后 /api/** 与 /v1/** 强制校验 Authorization: Bearer <key>；
       # 留空为开放模式（仅本地演示）。./install.sh 首次运行会自动生成随机密钥
       # 写入根目录 .env（compose 自动加载，无需手动 export）；生产环境可在
@@ -74,6 +80,15 @@ services:
       # .log 导入的「大模型格式化」需要 DashScope key；留空时该模式会提示未配置，
       # 可在导入弹窗取消勾选「启用大模型格式化解析」改走 JSON 直传模式。
       DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      # 工作台 Agent 的 LLM 通道（provider 与 OpenAI 兼容端点）。留空即回落到
+      # ~/.mo-agent-workbench/agent.env 与内置默认；在 .env 里设成：
+      #   MO_AGENT_PROVIDER=openai / LLM_BASE_URL=http://host.docker.internal:11434/v1
+      #   LLM_MODEL=qwen3:latest / LLM_API_KEY=ollama
+      # 即可让容器内的 Agent 走本机 Ollama，无需云端 key。
+      MO_AGENT_PROVIDER: ${MO_AGENT_PROVIDER:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -89,6 +104,32 @@ services:
       #   export MO_HOST_MOUNT_SRC="$HOME/Documents" MO_HOST_MOUNT_DST="$HOME/Documents"
       # 容器内将只能访问该目录；不需要文件浏览时可设为空串并删除本行使其完全不挂载。
       - "${MO_HOST_MOUNT_SRC:-${HOME:-/root}}:${MO_HOST_MOUNT_DST:-${HOME:-/root}}"
+
+  # 记忆外骨骼（L6 能学）：与 mo-server 共读同一个库，随 docker compose up -d 一起就绪。
+  # 「观测 → 记忆提炼」页即无需任何手动启动步骤——原先靠宿主机手动 `mvn spring-boot:run`，
+  # 重启项目后它不会自动回来，页面就报「不可达」。
+  mo-exoskeleton:
+    build: ./mo-exoskeleton
+    restart: unless-stopped
+    # 仅绑本机回环：容器之间走服务名 mo-exoskeleton:8081；这个映射只为方便本机直接 curl 调试
+    ports: ["127.0.0.1:8081:8081"]
+    environment:
+      MO_DB_URL: jdbc:postgresql://postgres:5432/mo
+      MO_DB_USER: ${MO_DB_USER:-mo}
+      MO_DB_PASSWORD: ${MO_DB_PASSWORD:-mo}
+      # LLM 只有「任务类型分类」（POST /tasks/classify，手动触发）用得到；留空即该端点如实报
+      # 未启用，不影响出卡与作答。与 mo-server 同一约定：容器内经 host.docker.internal 访问
+      # 本机 Ollama——在 .env 里设
+      #   LLM_BASE_URL=http://host.docker.internal:11434/v1 / LLM_MODEL=qwen3:latest
+      # 即可。reasoning-effort 的默认值刻意与 application.yml 一致（none，关掉思考链），
+      # 避免空串覆盖掉那个默认、让思考模型在长会话上超时。
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   mo-dashboard:
     build:

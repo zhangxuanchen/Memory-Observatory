@@ -63,6 +63,28 @@ OP_KEYWORDS = [
     ("READ",     r"读|精读|查询|检索|对齐|识别|确认|查看|探查|核对|read|query|search"),
 ]
 
+# io_kind：事件**性质**归一（B4 埋点补强），词表与 mo-server 的
+# `agentloop/workbench/report/IoKind.java` 逐字一致，口径见《自校准闭环：设计与实现（L6 能学）》附录 B4。
+#
+# 与 OP_KEYWORDS 是两把尺子，不要混：operation 回答「这是哪种记忆操作」，
+# io_kind 回答「这一轮到底动了什么」——正是 operation 答不了、B4.1/B4.2 卡住的那个问题。
+#
+# 诚实声明：action 是自然语言摘要，不是工具名，所以这里猜出来的 io_kind 与 _classify_op 同级，
+# 属**代理口径**；只有工作台中间件那条路拿到的是真工具名。故导入路径的「只读未写」不可全信（同 B5）。
+IO_KIND_KEYWORDS = [
+    # 顺序即优先级：记忆类先于文件类（「检索记忆」不能被 content_search 的「检索」抢走），
+    # 文件写先于文件读与内容检索（「修改 read_file 说明」应算写）。
+    ("memory_write",   r"记忆写入|写入记忆|记住|存记忆|save_memory|update_memory|memorize|store"),
+    ("memory_read",    r"记忆读取|读取记忆|回忆|检索记忆|search_memory|remember|retrieve|recall"),
+    ("file_write",     r"修改|编辑|重写|新建|创建|写入文件|改文件|重构|实现|修复|apply|edit|write|refactor"),
+    ("file_read",      r"读文件|阅读|精读|查看文件|打开|read_file|view_file"),
+    ("content_search", r"搜索|检索|查找|查询|grep|search|find|glob"),
+    ("tool_other",     r"运行|执行|命令|bash|shell|run|测试|构建|build|test|install"),
+]
+
+# 主事件（整段对话归档）恒为生命周期事件；子事件才参与上表判定。
+IO_KIND_LIFECYCLE = "lifecycle"
+
 
 def _classify_layer(text: str) -> str:
     low = text.lower()
@@ -78,6 +100,15 @@ def _classify_op(text: str) -> str:
         if re.search(pat, low):
             return op
     return "WRITE"  # 默认写入
+
+
+def _classify_io_kind(text: str) -> str:
+    """按 action 文本猜 io_kind（代理口径，见 IO_KIND_KEYWORDS 的诚实声明）。认不出一律 tool_other，不猜。"""
+    low = text.lower()
+    for kind, pat in IO_KIND_KEYWORDS:
+        if re.search(pat, low):
+            return kind
+    return "tool_other"
 
 
 def _parse_ts(summary_time: str) -> float:
@@ -123,7 +154,13 @@ def find_project_dirs(project_arg: str | None) -> list[Path]:
     if project_arg == "all":
         return [d for d in TRAECODE_MEMORY_ROOT.iterdir() if d.is_dir()]
     low = project_arg.lower()
-    return [d for d in TRAECODE_MEMORY_ROOT.iterdir() if d.is_dir() and low in d.name.lower()]
+    dirs = [d for d in TRAECODE_MEMORY_ROOT.iterdir() if d.is_dir()]
+    # 精确名优先：目录名互为子串（`foo` 与 `foo--p2-<hash>`）时，纯子串匹配会一次命中两个，
+    # 按目录逐个导入就会把带 --p2 后缀的那个灌两遍。给出精确目录名时只认它自己。
+    exact = [d for d in dirs if d.name.lower() == low]
+    if exact:
+        return exact
+    return [d for d in dirs if low in d.name.lower()]
 
 
 def parse_session_jsonl(jsonl_path: Path, agent_id: str) -> tuple[list[MemoryEvent], str]:
@@ -168,6 +205,8 @@ def parse_session_jsonl(jsonl_path: Path, agent_id: str) -> tuple[list[MemoryEve
                     "turn_actions": json.dumps(actions, ensure_ascii=False),
                     "turn_outcome": outcome,
                     "turn_learned": json.dumps(learned, ensure_ascii=False),
+                    # 主事件是「整段对话归档」，性质恒为生命周期（B4）
+                    "io_kind": IO_KIND_LIFECYCLE,
                 },
             ))
 
@@ -193,6 +232,8 @@ def parse_session_jsonl(jsonl_path: Path, agent_id: str) -> tuple[list[MemoryEve
                         # 完整 action 文本（前端抽屉显示用）
                         "turn_message_id": message_id,
                         "action_full": action,
+                        # 事件性质归一（B4）：供 §4.4 分桶判「有没有工具读 / 是否只读未写」
+                        "io_kind": _classify_io_kind(action),
                     },
                 ))
     return events, session_id
@@ -208,6 +249,9 @@ def main() -> None:
                         help="Agent ID（默认按项目 basename 自动生成；指定则所有项目用同一 agent）")
     parser.add_argument("--endpoint", default="http://localhost:4318/v1/traces",
                         help="OTLP 上报端点")
+    parser.add_argument("--api-key", default=os.environ.get("MO_API_KEY", ""),
+                        help="接口鉴权密钥，须与服务端 MO_API_KEY 一致；默认取环境变量 MO_API_KEY，"
+                             "留空则适用于开放模式（未配密钥）的部署（见 ENV.md）")
     args = parser.parse_args()
 
     project_dirs = find_project_dirs(args.project)
@@ -222,7 +266,8 @@ def main() -> None:
     def get_observer(aid: str) -> MemoryObserver:
         if aid not in observers:
             ob = MemoryObserver(agent_id=aid)
-            ob.add_exporter(OTelSpanExporter(endpoint=args.endpoint, service_name=aid))
+            ob.add_exporter(OTelSpanExporter(endpoint=args.endpoint, service_name=aid,
+                                             api_key=args.api_key))
             observers[aid] = ob
         return observers[aid]
 

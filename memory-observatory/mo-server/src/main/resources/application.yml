@@ -37,9 +37,23 @@ mo:
   # 请求头 Authorization: Bearer <key> 或 X-API-Key: <key>；留空为开放模式（仅本地演示）。
   auth:
     api-key: ${MO_API_KEY:}
+  # ===== 记忆外骨骼（mo-exoskeleton）=====
+  # 决策卡片页（左导航「治理」分组）经本服务转发取数：/api/v1/exoskeleton/** → 该基址。
+  # 外骨骼是独立应用，但已纳入 docker-compose（默认 :8081），随 `docker compose up -d` 一起就绪；
+  # 容器内由 compose 注入服务名 http://mo-exoskeleton:8081。默认值是给「本机直接跑
+  # mo-server（mvn spring-boot:run）+ 本机跑外骨骼」这个开发场景用的。
+  exoskeleton:
+    base-url: ${MO_EXOSKELETON_BASE_URL:http://localhost:8081}
   ingest:
     queue-capacity: 10000   # ArrayBlockingQueue 容量（旁路容错：满则丢最旧）
     flush-interval-ms: 5000 # 后台批量写库间隔
+  # ===== turn 特征物化（《分类记忆体：设计与实现》§4.2 零期）=====
+  # 把 memory_events 按 turn_message_id 聚合成 memory_turns，供分析型访问查询。
+  # 启动即跑一轮（首次等价于全量回填），之后按间隔增量。
+  turn:
+    materialize-enabled: ${MO_TURN_MATERIALIZE_ENABLED:true}
+    materialize-interval-ms: ${MO_TURN_MATERIALIZE_INTERVAL_MS:60000}   # 增量轮询间隔
+    materialize-overlap-minutes: ${MO_TURN_MATERIALIZE_OVERLAP_MINUTES:10}  # 回看重叠，兜晚到行
   # ===== Agent 工作台配置 =====
   # 口令形式：直接填 key，或用 ${ENV_VAR:} 占位符保留环境变量覆盖能力。
   agent:
@@ -89,6 +103,29 @@ mo:
     burst-min-count: 5        # 请求风暴：同一客户端同一分钟请求数 >= 该值
     spike-ratio: 3.0          # 小时尖峰：小时消耗 > 小时均值 × 该倍数
     spike-min-credits: 50     #   且小时消耗 >= 该值（避免小基数误报）
+  # ===== 告警推送（L4 闭环第一步：问题判定 → webhook 推送）=====
+  # 默认关且默认无 URL：没配 webhook 的部署启动后不报错、也不推任何东西。
+  # 启用需同时满足 enabled=true 与 webhook-url 非空。去重状态表见 schema.sql 的 alert_notifications。
+  notify:
+    enabled: ${MO_NOTIFY_ENABLED:false}                 # 总开关，默认关
+    webhook-url: ${MO_NOTIFY_WEBHOOK_URL:}              # 通用 webhook 地址；留空即停用
+    poll-interval-ms: ${MO_NOTIFY_POLL_INTERVAL_MS:300000}  # 轮询间隔（毫秒），默认 5 分钟
+    window-days: 1                                      # 每次评估的时间窗口（天）
+    semantic: true                                      # 阈值与风险两类源走语义过滤，压假阳性
+    cooldown-minutes: 360                               # 同一去重键的冷却窗口（分钟）
+    max-per-round: 20                                   # 每轮最多推几条（按严重度优先）
+    top-hits: 5                                         # 载荷里最多带几条命中明细
+    min-severity: medium                                # 低于此级别不推：critical|high|medium
+    quiet-hours: ""                                     # 静默时段，如 "22-8"；留空表示不静默
+    agents-limit: 200                                   # 单轮最多评估几个 agent
+    timeout-ms: 5000                                    # 单次 webhook 超时
+    connect-timeout-ms: 2000                            # webhook 连接超时
+    push-recovery: false                                # 恢复通知，首版默认关（状态照常记录）
+  # ===== 导出（原始事件流，字段与 /api/v1/import 契约一致，产出文件可直接回灌）=====
+  export:
+    # 单次导出的行数硬上限。请求里的 limit 会被这个值夹紧，防止一次导出拖垮库与内存。
+    # 需要导出更大范围时，按 agent/session 分批导出，而不是调大这个值。
+    max-rows: ${MO_EXPORT_MAX_ROWS:100000}
   # ===== 语义过滤层（laya 判别式决策引擎，本地自托管，33ms/次）=====
   # 作用：对确定层（阈值/规则/正则）的命中做语义确认，剔除假阳性。默认保留，只在高置信判假阳性时剔除。
   # 后端由 mo-server 启动时自动拉起（Python 进程），已在运行则自动复用；起不来则自动降级，不影响告警。

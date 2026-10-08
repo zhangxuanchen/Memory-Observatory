@@ -40,6 +40,8 @@ Thumbs.db
 
 # ===== 本地工作文档（不提交）=====
 .workbuddy/
+# Trae 工作区：.trae/documents/ 下的实施方案含本机绝对路径（/Users/...），不进公开仓库
+.trae/
 LAYA-INTEGRATION.md
 LAYA-SEMANTIC-FILTER.md
 OBSERVABILITY-COMPARISON.md
@@ -49,3 +51,8 @@ scripts/check-laya.py
 # ===== 前端依赖（如有本地构建）=====
 node_modules/
 dist/
+
+# ===== 课件（知识付费资产，不进公开仓库）=====
+# learn/ 是付费课程内容，本仓库有公开 remote，故整目录忽略。
+# 若将来改为私有仓库或改用独立仓库分发，删掉下面这一行即可纳入版本管理。
+learn/

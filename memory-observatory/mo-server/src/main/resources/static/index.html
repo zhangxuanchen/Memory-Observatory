@@ -1104,6 +1104,10 @@ td.sem-td{white-space:nowrap;width:1%}
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4a1 1 0 011-1h10a1 1 0 011 1v6a1 1 0 01-1 1H6l-3 3v-3H3a1 1 0 01-1-1V4z"/><path d="M5 6h6M5 8h4"/></svg>
       <span data-i18n="nav-messages">事件详情</span>
     </div>
+    <div class="nav-item" data-page="exoskeleton" tabindex="0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 1.5L14.5 8 8 14.5 1.5 8 8 1.5z"/><path d="M5.6 8.2l1.7 1.7 3.1-3.6"/></svg>
+      <span data-i18n="nav-exoskeleton">记忆提炼</span>
+    </div>
     <div class="nav-section-label" data-i18n="nav-analysis">分析 · Analysis</div>
     <div class="nav-item" data-page="token" tabindex="0">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 1v14M5 4h5a2 2 0 010 4H4M4 8h6a2 2 0 010 4H5"/></svg>
@@ -1792,7 +1796,40 @@ td.sem-td{white-space:nowrap;width:1%}
       </div>
       <div id="importResult" class="import-result"></div>
     </div>
-    <!-- 技能 / MCP 接入 -->
+    <!-- 原始事件导出（导入的对称面：产出文件可直接回灌） -->
+    <div class="section-card analysis-full">
+      <div class="section-title"><span data-i18n="export-sec">原始事件导出 · 可回灌</span></div>
+      <div class="import-row">
+        <span class="import-label" data-i18n="export-agent">Agent</span>
+        <input type="text" id="exportAgent" class="import-input" placeholder="role-frontend" style="width:180px">
+        <span class="import-label" data-i18n="export-days">近 N 天</span>
+        <input type="number" id="exportDays" class="import-input" value="7" min="0" style="width:80px">
+      </div>
+      <div class="import-row">
+        <span class="import-label" data-i18n="export-session">Session / Trace</span>
+        <input type="text" id="exportSession" class="import-input" placeholder="sess-1001" style="width:180px">
+        <input type="text" id="exportTrace" class="import-input" placeholder="32hex trace_id" style="width:180px">
+      </div>
+      <div class="import-row">
+        <span class="import-label" data-i18n="export-format">格式</span>
+        <select id="exportFormat" class="filter-select" style="width:auto">
+          <option value="jsonl">JSONL（逐行，大文件 / 流式入库推荐）</option>
+          <option value="json">JSON（数组，可直接回灌）</option>
+        </select>
+        <button class="btn" id="exportBtn" onclick="exportEvents()" data-i18n="export-btn">导出</button>
+        <span id="exportStatus" class="import-fname"></span>
+      </div>
+      <div class="import-guide">
+        <div class="import-guide-title" data-i18n="export-guide">导出说明</div>
+        <ul class="import-guide-body">
+          <li data-i18n="export-g-round">字段与 POST /api/v1/import 的契约一致：json 数组可直接再导入回来，不需要转换；jsonl 逐行更适合大文件与流式入库，回灌前包成 JSON 数组即可</li>
+          <li data-i18n="export-g-zone">timestamp 按 Asia/Shanghai 写成 yyyy-MM-dd HH:mm:ss，与导入侧的解析格式逐字一致，回灌不会平移时间</li>
+          <li data-i18n="export-g-lossy">事件时间的亚秒精度会在回灌时归零（导入格式只到秒），这是导入契约的限制</li>
+          <li data-i18n="export-g-rows">单次导出行数上限见 mo.export.max-rows（默认 100000）；需要更大范围时按 agent 或 session 分批导出</li>
+          <li data-i18n="export-g-api">等价接口：GET /api/v1/export/events?format=jsonl&agent=&days=7</li>
+        </ul>
+      </div>
+    </div>
     <div class="section-card analysis-full">
       <div class="section-title"><span data-i18n="import-skill">技能 / MCP 自动接入</span></div>
       <div class="import-row">
@@ -1848,6 +1885,52 @@ td.sem-td{white-space:nowrap;width:1%}
     </div>
   </div>
 </section>
+
+<!-- ============ 记忆提炼页（观测 · Observability：分类清单 + 技能发现）============ -->
+<!-- 范式：记忆提炼自己按任务类型把对话分门别类、自己从每一类里学技能，人只决定「要不要用」。
+     实现上仍叫 mo-exoskeleton（外骨骼），此处只改人面叫法。
+     原来的 §4.10 决策卡片（规则上线审批台）后端保留、人面撤下——故本页不再有逐张作答的卡。 -->
+<section class="page" id="page-exoskeleton" aria-label="记忆提炼">
+  <div class="section-card analysis-full">
+    <div class="section-title" style="display:flex;align-items:center;gap:10px">
+      <span data-i18n="exo-tool-title">记忆提炼 · 技能发现</span>
+      <button class="btn" id="exoDiscoverBtn" style="margin-left:auto;height:30px;padding:0 14px;font-size:12px" data-i18n="exo-btn-discover">重新提炼</button>
+    </div>
+    <div class="import-guide" style="margin-bottom:12px">
+      <div class="import-use-title" data-i18n="exo-tool-desc"></div>
+    </div>
+    <!-- 筛选：先选 Agent（必选其一才出清单），再选 Session 收窄到单个会话；换 Agent 会自动重取会话选单 -->
+    <div class="import-row" style="margin-bottom:0;gap:10px;flex-wrap:wrap;align-items:center">
+      <span style="font-size:12px;color:var(--text-dim)" data-i18n="exo-filter-agent">Agent</span>
+      <select id="exoAgentSel" onchange="exoOnAgentChange()" style="height:30px;min-width:260px;max-width:420px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 8px"></select>
+      <span style="font-size:12px;color:var(--text-dim)" data-i18n="exo-filter-session">Session</span>
+      <select id="exoSessionSel" onchange="exoOnSessionChange()" style="height:30px;min-width:200px;max-width:360px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 8px"></select>
+      <span id="exoStatusMsg" style="margin-left:auto;font-size:12px;color:var(--text-secondary)"></span>
+    </div>
+  </div>
+
+  <div class="section-card analysis-full" id="exoClassesCard">
+    <div class="section-title" data-i18n="exo-classes-title">分类清单 · 分成了哪些类</div>
+    <div id="exoClassesNote" style="font-size:11.5px;color:var(--text-dim);margin-bottom:10px;white-space:pre-wrap"></div>
+    <div id="exoClassesBody"></div>
+  </div>
+
+  <div class="section-card analysis-full" id="exoProposalsCard" style="display:none">
+    <div class="section-title" data-i18n="exo-proposals-title">发现的可复用技能（要不要用）</div>
+    <div id="exoProposalsBody" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+</section>
+
+<!-- 决策卡片 · 逃逸口弹窗（§4.10.7：看原始样本，不占选项位） -->
+<div id="decModal" style="position:fixed;inset:0;z-index:9990;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.45);padding:24px" onclick="if(event.target===this)decCloseModal()">
+  <div style="width:640px;max-width:94vw;max-height:82vh;overflow:auto;background:#fff;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.25);font-family:inherit">
+    <div style="display:flex;align-items:center;gap:10px;padding:16px 20px;border-bottom:1px solid var(--border-glass)">
+      <b style="font-size:14px;font-weight:700;color:var(--text-primary)" data-i18n="dec-escapade-title">原始读数</b>
+      <button class="drawer-close" style="margin-left:auto" onclick="decCloseModal()">✕</button>
+    </div>
+    <div id="decModalBody" style="padding:16px 20px;font-size:12.5px;color:var(--text-primary);line-height:1.7"></div>
+  </div>
+</div>
 
 <!-- ============ MCP 接入编辑弹窗 ============ -->
 <div class="modal-mask" id="mcpModal" style="display:none" onclick="if(event.target===this)mcpModalClose()">
@@ -1966,7 +2049,7 @@ td.sem-td{white-space:nowrap;width:1%}
       <div class="agent-cmds" id="agentCmds">
         <span class="ac-label">常用命令</span>
         <button class="ac-chip" onclick="agentRunCommand('classify')" title="工作区数据分类：#开头命令，让经理扫描工作区数据分类汇总，生成 HTML 报表并展示在展示面板">数据分类</button>
-        <button class="ac-chip" onclick="agentRunCommand('discover')" title="发现技能：扫描工作区数据，沉淀出多个可复用技能写到 .workbench/skills/">发现技能</button>
+        <button class="ac-chip" onclick="agentRunCommand('discover')" title="发现技能：扫描工作区数据，沉淀出多个可复用技能写到 .workbench/skills/（正式的按任务类型自动发现见「观测 · 记忆提炼」页）">发现技能</button>
       </div>
       <div class="agent-input">
         <textarea id="agentPrompt" rows="2" data-i18n-ph="agent-input-ph" placeholder="给 Agent 下达任务…" style="flex:1"></textarea>
@@ -3079,6 +3162,83 @@ const I18N={
     'nav-settings':'设置 · Settings',
     'nav-access-key':'访问密钥',
     'nav-model-key':'模型密钥',
+    'nav-governance':'治理 · Governance',
+    'nav-decision':'决策',
+    'page-decision':'决策 · 卡片',
+    // 记忆提炼页（观测 · Observability：分类清单 + 技能发现）
+    'nav-exoskeleton':'记忆提炼',
+    'page-exoskeleton':'记忆提炼 · Memory Distillation',
+    'exo-tool-title':'记忆提炼 · 技能发现',
+    'exo-tool-desc':'记忆提炼自己按任务类型把你的对话分门别类，再从每一类里学出可复用的技能；你只需决定「要不要用」。无事不打扰——只有真提炼出技能时才会出现一条待办。',
+    'exo-btn-discover':'重新提炼',
+    'exo-filter-agent':'Agent',
+    'exo-filter-session':'Session',
+    'exo-agent-all':'（请选择 Agent）',
+    'exo-session-all':'全部会话（不收窄）',
+    'exo-agent-opt':'{0}（{1} 会话 · {2} 对话）',
+    'exo-agent-opt-pending':'{0}（{1} 会话 · {2} 对话 · {3} 待采纳）',
+    'exo-session-opt':'{0}（{1} · {2} 对话）',
+    'exo-pick-agent':'请先在上方选择一个 Agent，再看它分成了哪些类。',
+    'exo-pending-hint':'有 {0} 条待采纳的技能提议——先选一个 Agent 查看。',
+    'exo-discover-need-agent':'请先选择一个 Agent，再重新提炼。提炼以「Agent × 任务类型」为单位。',
+    'exo-classes-title':'分类清单 · 分成了哪些类',
+    'exo-classes-note':'该 Agent 下每个类是多少个会话、多少条对话；对话数达到 {0} 条才会去提炼技能（未达标显示为「未达标」）。「未分类」是还没跑过分类的会话。',
+    'exo-proposals-title':'发现的可复用技能（要不要用）',
+    'exo-col-type':'任务类型',
+    'exo-col-sessions':'会话数',
+    'exo-col-turns':'对话数',
+    'exo-col-skill':'技能',
+    'exo-loading':'处理中…',
+    'exo-err-load':'取数失败',
+    'exo-empty-classes':'还没有分类数据。记忆提炼会在下一次分类跑完后自动填上这里。',
+    'exo-skill-eligible':'可提炼（达标）',
+    'exo-skill-below':'未达标',
+    'exo-status-pending':'待采纳',
+    'exo-status-adopted':'已启用',
+    'exo-status-dismissed':'已不用',
+    'exo-btn-adopt':'启用',
+    'exo-btn-dismiss':'不用',
+    'exo-adopt-ok':'已启用为全局技能',
+    'exo-adopt-fail':'启用失败',
+    'exo-dismiss-ok':'已标记不用，不再重复提',
+    'exo-dismiss-fail':'标记失败',
+    'exo-discover-ok':'提炼完成',
+    'exo-discover-stat':'送模型 {0} 类 · 新提议 {1} · 无新增 {2} · 失败 {3} · 未变跳过 {4}',
+    'exo-discover-fail':'提炼失败',
+    'exo-tools':'工具',
+    'exo-skill-purpose':'能干什么',
+    'exo-prompt-toggle':'完整流程（prompt）',
+    'exo-source':'来源',
+    'exo-from-turns':'从 {0} 条对话提炼',
+    'exo-disabled':'记忆提炼的 LLM 通道未配置，暂不能提炼（如实报告，不阻塞）。',
+    'dec-tool-title':'决策卡片下发（§4.10）',
+    'dec-tool-desc':'每张卡是一道三选一：选项固定三档、位置固定，默认项是「不动」。点一档即作答，后果由服务端执行——「采纳」不等于生效（缺证据会被晋升闸门拦下）。不回答是安全的：不答的卡下个周期会刷新重提。',
+    'dec-btn-generate':'生成卡片',
+    'dec-btn-refresh':'刷新',
+    'dec-include-expired':'含已到期',
+    'dec-stats-title':'卡片数（反向指标：越少越好）',
+    'dec-stat-open':'待答',
+    'dec-stat-answered':'已答',
+    'dec-stat-expired':'已到期',
+    'dec-stat-cap':'单轮上限',
+    'dec-tmpl-title':'模板触发情况',
+    'dec-loading':'加载中…',
+    'dec-empty':'当前没有待答的卡片。点「生成卡片」跑一轮出卡。',
+    'dec-gen-ok':'出卡完成',
+    'dec-err-load':'取数失败',
+    'dec-default-badge':'默认 · 不动',
+    'dec-answered-badge':'已答',
+    'dec-expired-badge':'已到期',
+    'dec-evidence':'证据（每项都带对照）',
+    'dec-escapade':'看原始样本',
+    'dec-escapade-title':'原始读数',
+    'dec-reversible':'可逆性',
+    'dec-expires':'有效期',
+    'dec-days':'天',
+    'dec-close':'关闭',
+    'dec-subjects':'覆盖范围',
+    'dec-answer-fail':'作答失败',
+    'dec-answer-ok':'已记录',
     'page-mcp-manage':'MCP 管理',
     'mcp-client-title':'MCP Server 接入（Client）',
     'mcp-client-desc':'把外部 MCP server（Streamable HTTP）接入为本平台的工具源；在技能的工具授权里勾选后，Agent 装配时即可像内置工具一样直接调用。',
@@ -3205,6 +3365,21 @@ const I18N={
     'import-inserted':'成功',
     'import-skipped':'跳过',
     'import-errors-head':'失败明细（前 10 条）：',
+    'export-sec':'原始事件导出 · 可回灌',
+    'export-agent':'Agent',
+    'export-days':'近 N 天',
+    'export-session':'Session / Trace',
+    'export-format':'格式',
+    'export-btn':'导出',
+    'export-guide':'导出说明',
+    'export-g-round':'字段与 POST /api/v1/import 的契约一致：json 数组可直接再导入回来，不需要转换；jsonl 逐行更适合大文件与流式入库，回灌前包成 JSON 数组即可',
+    'export-g-zone':'timestamp 按 Asia/Shanghai 写成 yyyy-MM-dd HH:mm:ss，与导入侧的解析格式逐字一致，回灌不会平移时间',
+    'export-g-lossy':'事件时间的亚秒精度会在回灌时归零（导入格式只到秒），这是导入契约的限制',
+    'export-g-rows':'单次导出行数上限见 mo.export.max-rows（默认 100000）；需要更大范围时按 agent 或 session 分批导出',
+    'export-g-api':'等价接口：GET /api/v1/export/events?format=jsonl&agent=&days=7',
+    'export-running':'正在导出…',
+    'export-done':'已导出',
+    'export-fail':'导出失败：',
     'sec-agent-comparison':'Agent 对比',
     'ac-toggle-title':'按 Session 查看明细',
     'col-loop-rate':'循环率','col-invalid-rate':'无效操作率','col-health-score':'健康分',
@@ -3557,6 +3732,83 @@ const I18N={
     'nav-settings':'Settings',
     'nav-access-key':'Access Key',
     'nav-model-key':'Model Keys',
+    'nav-governance':'Governance',
+    'nav-decision':'Decision',
+    'page-decision':'Decision Cards',
+    // Memory Distillation page (Observability: class list + skill discovery)
+    'nav-exoskeleton':'Memory Distillation',
+    'page-exoskeleton':'Memory Distillation',
+    'exo-tool-title':'Memory Distillation · Skill discovery',
+    'exo-tool-desc':'Memory Distillation sorts your conversations into task types and learns reusable skills from each class by itself; you only decide whether to use them. No news is good news — a to-do appears only when a skill is actually found.',
+    'exo-btn-discover':'Re-discover',
+    'exo-filter-agent':'Agent',
+    'exo-filter-session':'Session',
+    'exo-agent-all':'(Pick an Agent)',
+    'exo-session-all':'All sessions (no narrowing)',
+    'exo-agent-opt':'{0} ({1} sessions · {2} turns)',
+    'exo-agent-opt-pending':'{0} ({1} sessions · {2} turns · {3} pending)',
+    'exo-session-opt':'{0} ({1} · {2} turns)',
+    'exo-pick-agent':'Pick an Agent above to see what categories it falls into.',
+    'exo-pending-hint':'{0} skill proposals await your call — pick an Agent to view them.',
+    'exo-discover-need-agent':'Pick an Agent first, then re-discover. Discovery works per "Agent × task type".',
+    'exo-classes-title':'Class list · what categories exist',
+    'exo-classes-note':'For this Agent, how many sessions and turns each class has; a class is mined for skills only when it reaches {0} turns (below that shows "below threshold"). "Unclassified" means classification has not run yet.',
+    'exo-proposals-title':'Discovered reusable skills (use or not)',
+    'exo-col-type':'Task type',
+    'exo-col-sessions':'Sessions',
+    'exo-col-turns':'Turns',
+    'exo-col-skill':'Skill',
+    'exo-loading':'Working…',
+    'exo-err-load':'Failed to load',
+    'exo-empty-classes':'No classification data yet. Memory Distillation will fill this in after the next classification run.',
+    'exo-skill-eligible':'Eligible',
+    'exo-skill-below':'Below threshold',
+    'exo-status-pending':'Pending',
+    'exo-status-adopted':'Adopted',
+    'exo-status-dismissed':'Dismissed',
+    'exo-btn-adopt':'Enable',
+    'exo-btn-dismiss':'Dismiss',
+    'exo-adopt-ok':'Enabled as a global skill',
+    'exo-adopt-fail':'Failed to enable',
+    'exo-dismiss-ok':'Dismissed; it will not be proposed again',
+    'exo-dismiss-fail':'Failed to dismiss',
+    'exo-discover-ok':'Discovery finished',
+    'exo-discover-stat':'{0} sent to model · {1} new · {2} none · {3} failed · {4} unchanged, skipped',
+    'exo-discover-fail':'Discovery failed',
+    'exo-tools':'Tools',
+    'exo-skill-purpose':'What it does',
+    'exo-prompt-toggle':'Full procedure (prompt)',
+    'exo-source':'Source',
+    'exo-from-turns':'Distilled from {0} turns',
+    'exo-disabled':'The Memory Distillation LLM channel is not configured; discovery is unavailable (reported as-is, non-blocking).',
+    'dec-tool-title':'Decision cards (§4.10)',
+    'dec-tool-desc':'Each card is a three-way choice: exactly three options, fixed positions, default is "do nothing". Clicking an option answers it; the consequence is executed server-side — "accept" is NOT the same as taking effect (the promotion gate blocks it when evidence is missing). Not answering is safe: unanswered cards are refreshed next cycle.',
+    'dec-btn-generate':'Generate cards',
+    'dec-btn-refresh':'Refresh',
+    'dec-include-expired':'Include expired',
+    'dec-stats-title':'Card count (inverse metric: fewer is better)',
+    'dec-stat-open':'Open',
+    'dec-stat-answered':'Answered',
+    'dec-stat-expired':'Expired',
+    'dec-stat-cap':'Per-round cap',
+    'dec-tmpl-title':'Template trigger status',
+    'dec-loading':'Loading…',
+    'dec-empty':'No open cards right now. Click "Generate cards" to run a round.',
+    'dec-gen-ok':'Cards generated',
+    'dec-err-load':'Failed to load',
+    'dec-default-badge':'Default · do nothing',
+    'dec-answered-badge':'Answered',
+    'dec-expired-badge':'Expired',
+    'dec-evidence':'Evidence (each with a comparison)',
+    'dec-escapade':'View raw sample',
+    'dec-escapade-title':'Raw readings',
+    'dec-reversible':'Reversible',
+    'dec-expires':'Expires in',
+    'dec-days':'days',
+    'dec-close':'Close',
+    'dec-subjects':'Scope',
+    'dec-answer-fail':'Failed to answer',
+    'dec-answer-ok':'Recorded',
     'page-mcp-manage':'MCP Management',
     'mcp-client-title':'MCP Server Access (Client)',
     'mcp-client-desc':'Connect external MCP servers (Streamable HTTP) as tool sources for this platform. Enable them in a skill\'s tool authorization and Agents can call them like built-in tools.',
@@ -3683,6 +3935,21 @@ const I18N={
     'import-inserted':'inserted',
     'import-skipped':'skipped',
     'import-errors-head':'Errors (first 10):',
+    'export-sec':'Raw Event Export · Re-importable',
+    'export-agent':'Agent',
+    'export-days':'Last N days',
+    'export-session':'Session / Trace',
+    'export-format':'Format',
+    'export-btn':'Export',
+    'export-guide':'About the export',
+    'export-g-round':'Fields match the POST /api/v1/import contract: the json array imports back as-is with no conversion; jsonl is line-delimited (better for large files / streaming) - wrap it in a JSON array before re-importing',
+    'export-g-zone':'timestamp is written as yyyy-MM-dd HH:mm:ss in Asia/Shanghai, byte-identical to the import parser format, so re-import never shifts time',
+    'export-g-lossy':'Sub-second precision is dropped to zero on re-import (the import format only keeps seconds) - a limit of the import contract',
+    'export-g-rows':'Per-export row cap is mo.export.max-rows (default 100000); for larger ranges export in batches by agent or session',
+    'export-g-api':'Equivalent API: GET /api/v1/export/events?format=jsonl&agent=&days=7',
+    'export-running':'Exporting…',
+    'export-done':'Exported',
+    'export-fail':'Export failed: ',
     'sec-agent-comparison':'Agent Comparison',
     'ac-toggle-title':'View session breakdown',
     'col-loop-rate':'Loop Rate','col-invalid-rate':'Invalid Rate','col-health-score':'Health Score',
@@ -3867,6 +4134,7 @@ function tab(name,btn){
     renderPkgGuide('mcpGuideBody','mcpPlatform');
     mcpLoad();
   }
+  else if(name==='exoskeleton') exoLoad();
   memSyncVisibility();
 }
 // 侧边菜单点击切换页面（设置入口等无 data-page 的 nav-item 不参与页签切换，
@@ -3878,6 +4146,486 @@ document.querySelectorAll('.nav-item[data-page]').forEach(b=>{
 document.querySelectorAll('.nav-item:not([data-page])').forEach(b=>{
   b.addEventListener('keydown',e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); b.click(); } });
 });
+
+// ============ 记忆提炼页（观测 · Observability：分类清单 + 技能发现）============
+// 范式：记忆提炼自己按任务类型把对话分门别类、自己提炼技能；人只决定「要不要用」。
+// 数据源同源 /api/v1/exoskeleton/**（mo-server 转发到 mo-exoskeleton）。
+// 「启用」走 mo-server 的采纳编排（ExoskeletonSkillController：落全局技能 + 标记 ADOPTED）；
+// 「不用」与「重新提炼」由转发层原样透传。卡面一律 DOM + textContent，不拼 innerHTML。
+const EXO_BASE='/api/v1/exoskeleton/skills';
+
+function exoSetStatus(msg,isErr){
+  const el=$('exoStatusMsg');
+  if(el){ el.textContent=msg||''; el.style.color=isErr?'#C0392B':'var(--text-secondary)'; }
+}
+
+// 当前筛选：Agent 必选其一才出清单；Session 可选，用于收窄到单个会话。
+let exoAgent=null, exoSession=null;
+
+async function exoLoad(){
+  const body=$('exoClassesBody');
+  body.textContent='';
+  body.appendChild(decEl('div',t('exo-loading'),'font-size:12.5px;color:var(--text-secondary);padding:8px 2px'));
+  const qs=[];
+  if(exoAgent) qs.push('agent='+encodeURIComponent(exoAgent));
+  if(exoAgent&&exoSession) qs.push('session='+encodeURIComponent(exoSession));
+  let data;
+  try{
+    const r=await fetch(EXO_BASE+(qs.length?('?'+qs.join('&')):''),{credentials:'same-origin'});
+    if(!r.ok){
+      let msg='HTTP '+r.status;
+      try{ const j=await r.json(); if(j&&j.error) msg=j.error; }catch(e){}
+      throw new Error(msg);
+    }
+    data=await r.json();
+  }catch(e){
+    // 取不到就如实报（含 503「外骨骼不可达」），不显示成「空清单」那种看起来正常的假象。
+    body.textContent='';
+    body.appendChild(decEl('div',t('exo-err-load')+'：'+(e&&e.message?e.message:''),
+      'font-size:12.5px;color:#C0392B;padding:8px 2px;white-space:pre-wrap'));
+    exoSetStatus(t('exo-err-load'),true);
+    return;
+  }
+  // 选中的 Agent / Session 若已不在选项面里（数据变了），退回未选，避免下拉与清单各说各话。
+  if(exoAgent && !(data.agents||[]).some(a=>a.agentId===exoAgent)) exoAgent=null;
+  if(exoSession && !(data.sessions||[]).some(s=>s.sessionId===exoSession)) exoSession=null;
+  exoRenderAgents(data.agents||[]);
+  exoRenderSessions(data.sessions||[]);
+  exoRenderClasses(data.classes||[],data.minTurns,!!data.agentId);
+  exoRenderProposals(data.proposals||[]);
+  // LLM 未配置优先如实报；其次，还没选 Agent 但有提议在等，就提示去哪看（无事不打扰）。
+  const pend=(data.agents||[]).reduce((s,a)=>s+(a.pending||0),0);
+  if(!data.enabled) exoSetStatus(t('exo-disabled'),true);
+  else if(!data.agentId && pend>0) exoSetStatus(t('exo-pending-hint',pend),false);
+  else exoSetStatus('');
+}
+
+function exoOnAgentChange(){
+  const s=$('exoAgentSel');
+  exoAgent=(s&&s.value)?s.value:null;
+  exoSession=null;   // 换 Agent 就收起会话收窄：旧 Session 不属于新 Agent
+  exoLoad();
+}
+
+function exoOnSessionChange(){
+  const s=$('exoSessionSel');
+  exoSession=(s&&s.value)?s.value:null;
+  exoLoad();
+}
+
+// Agent 下拉：始终全量（它是筛选器的选项面，不被自己的筛选结果影响）。
+function exoRenderAgents(agents){
+  const sel=$('exoAgentSel');
+  if(!sel) return;
+  sel.textContent='';
+  sel.appendChild(new Option(t('exo-agent-all'),''));
+  agents.forEach(a=>{
+    const label=a.pending>0
+      ? t('exo-agent-opt-pending',a.agentId,a.sessions,a.turns,a.pending)
+      : t('exo-agent-opt',a.agentId,a.sessions,a.turns);
+    sel.appendChild(new Option(label,a.agentId));
+  });
+  sel.value=exoAgent||'';
+}
+
+// Session 下拉：随所选 Agent 联动；未选 Agent 时禁用（无可选项）。
+function exoRenderSessions(sessions){
+  const sel=$('exoSessionSel');
+  if(!sel) return;
+  sel.textContent='';
+  if(!exoAgent){ sel.disabled=true; sel.appendChild(new Option(t('exo-agent-all'),'')); sel.value=''; return; }
+  sel.disabled=false;
+  sel.appendChild(new Option(t('exo-session-all'),''));
+  sessions.forEach(s=>{
+    sel.appendChild(new Option(t('exo-session-opt',s.sessionId,s.label||s.taskType||'',s.turns),s.sessionId));
+  });
+  sel.value=exoSession||'';
+}
+
+// 分类清单表：任务类型 · 该类会话数 · 对话数 · 技能状态
+function exoRenderClasses(classes,minTurns,agentSelected){
+  const body=$('exoClassesBody');
+  body.textContent='';
+  const note=$('exoClassesNote');
+  if(note) note.textContent=agentSelected?t('exo-classes-note',minTurns==null?30:minTurns):'';
+  if(!agentSelected){
+    // 未选 Agent 就不给类清单：不拿「全库聚合」冒充「这个 Agent 的分类」。
+    body.appendChild(decEl('div',t('exo-pick-agent'),'font-size:12.5px;color:var(--text-secondary);padding:10px 2px'));
+    return;
+  }
+  if(!classes.length){
+    body.appendChild(decEl('div',t('exo-empty-classes'),'font-size:12.5px;color:var(--text-secondary);padding:10px 2px'));
+    return;
+  }
+  const table=decEl('table',null,'width:100%;border-collapse:collapse;font-size:12.5px');
+  const head=decEl('tr');
+  [t('exo-col-type'),t('exo-col-sessions'),t('exo-col-turns'),t('exo-col-skill')].forEach((h,i)=>{
+    head.appendChild(decEl('th',h,'text-align:'+(i===0?'left':'right')
+      +';font-weight:600;color:var(--text-dim);font-size:11.5px;padding:7px 10px;border-bottom:1px solid var(--border-glass)'));
+  });
+  const thead=decEl('thead'); thead.appendChild(head); table.appendChild(thead);
+  const tbody=decEl('tbody');
+  classes.forEach(c=>{
+    const tr=decEl('tr');
+    tr.appendChild(decEl('td',c.label,'padding:7px 10px;text-align:left;color:var(--text-primary);font-weight:600'));
+    tr.appendChild(decEl('td',String(c.sessions==null?'-':c.sessions),'padding:7px 10px;text-align:right;color:var(--text-secondary)'));
+    tr.appendChild(decEl('td',String(c.turns==null?'-':c.turns),'padding:7px 10px;text-align:right;color:var(--text-secondary)'));
+    const txt=c.proposalStatus?t('exo-status-'+String(c.proposalStatus).toLowerCase())
+                             :(c.eligible?t('exo-skill-eligible'):t('exo-skill-below'));
+    const col=c.proposalStatus?'var(--color-primary)':'var(--text-dim)';
+    tr.appendChild(decEl('td',txt,'padding:7px 10px;text-align:right;font-size:11.5px;color:'+col));
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  body.appendChild(table);
+}
+
+function exoRenderProposals(proposals){
+  const card=$('exoProposalsCard'), body=$('exoProposalsBody');
+  body.textContent='';
+  if(!proposals||!proposals.length){ card.style.display='none'; return; }
+  proposals.forEach(p=>body.appendChild(exoProposal(p)));
+  card.style.display='';
+}
+
+function exoProposal(p){
+  const wrap=decEl('div',null,'background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-card)');
+  const head=decEl('div',null,'display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px');
+  head.appendChild(decEl('span',p.taskLabel,'font-size:11px;font-weight:700;color:var(--color-primary);background:var(--color-primary-dim);border-radius:5px;padding:2px 7px;flex:none'));
+  head.appendChild(decEl('div',p.name,'font-size:14px;font-weight:700;color:var(--text-primary);flex:1;min-width:200px'));
+  if(p.status==='ADOPTED') head.appendChild(decBadge(t('exo-status-adopted'),'#1B7A4B','#E8F6EE'));
+  if(p.status==='DISMISSED') head.appendChild(decBadge(t('exo-status-dismissed'),'#8A6D1F','#FBF3E3'));
+  wrap.appendChild(head);
+
+  // 能干什么：一句话说明这技能解决什么，是「要不要用」的第一眼依据
+  if(p.description){
+    const row=decEl('div',null,'display:flex;gap:6px;align-items:flex-start;margin-bottom:10px');
+    row.appendChild(decEl('span',t('exo-skill-purpose')+'：','font-size:11.5px;font-weight:600;color:var(--text-dim);flex:none'));
+    row.appendChild(decEl('span',p.description,'font-size:12.5px;color:var(--text-secondary)'));
+    wrap.appendChild(row);
+  }
+
+  // 完整流程（prompt）默认展开：看不到具体步骤就判断不了「有啥用途」，故直接摊开、但仍可折叠
+  if(p.prompt){
+    const det=document.createElement('details');
+    det.open=true;
+    det.setAttribute('style','margin-bottom:10px');
+    det.appendChild(decEl('summary',t('exo-prompt-toggle'),'font-size:11.5px;font-weight:600;color:var(--text-dim);cursor:pointer'));
+    det.appendChild(decEl('pre',p.prompt,'margin:8px 0 0;padding:10px 12px;background:#F7F8FA;border-radius:var(--radius-sm);font-size:11.5px;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;font-family:inherit'));
+    wrap.appendChild(det);
+  }
+
+  if(p.tools&&p.tools.length){
+    const row=decEl('div',null,'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:12px');
+    row.appendChild(decEl('span',t('exo-tools')+'：','font-size:11.5px;color:var(--text-dim)'));
+    p.tools.forEach(x=>row.appendChild(decEl('code',x,'font-size:11.5px;color:var(--text-secondary);background:#F4F5F7;border-radius:4px;padding:1px 6px')));
+    wrap.appendChild(row);
+  }
+
+  if(p.status==='PENDING'){
+    const opts=decEl('div',null,'display:flex;gap:10px;flex-wrap:wrap');
+    const adopt=document.createElement('button');
+    adopt.type='button'; adopt.textContent=t('exo-btn-adopt');
+    adopt.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid #3AA76D;background:#E8F6EE;color:#1B7A4B;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer');
+    adopt.onclick=()=>exoAdopt(p.proposalId,adopt);
+    const dis=document.createElement('button');
+    dis.type='button'; dis.textContent=t('exo-btn-dismiss');
+    dis.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);background:transparent;color:var(--text-secondary);font-size:12.5px;font-family:inherit;cursor:pointer');
+    dis.onclick=()=>exoDismiss(p.proposalId,dis);
+    opts.appendChild(adopt); opts.appendChild(dis);
+    wrap.appendChild(opts);
+  }
+
+  // 来源：这技能是从哪个 Agent、多少条对话里提炼出来的（判断可不可信）
+  const src=[];
+  if(p.agentId) src.push(p.agentId);
+  if(p.turns!=null) src.push(t('exo-from-turns',p.turns));
+  if(src.length) wrap.appendChild(decEl('div',t('exo-source')+'：'+src.join(' · '),'margin-top:10px;font-size:11px;color:var(--text-dim)'));
+  return wrap;
+}
+
+async function exoAdopt(id,btn){
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch(EXO_BASE+'/'+encodeURIComponent(id)+'/adopt',{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    agentToast(j.message||t('exo-adopt-ok'));   // 后端 message 已如实写明落到哪个作用域，原样透出
+    await exoLoad();
+  }catch(e){
+    if(btn) btn.disabled=false;
+    exoSetStatus(t('exo-adopt-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+async function exoDismiss(id,btn){
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch(EXO_BASE+'/'+encodeURIComponent(id)+'/dismiss',{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    agentToast(t('exo-dismiss-ok'));
+    await exoLoad();
+  }catch(e){
+    if(btn) btn.disabled=false;
+    exoSetStatus(t('exo-dismiss-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+async function exoDiscover(){
+  if(!exoAgent){ exoSetStatus(t('exo-discover-need-agent'),true); return; }
+  const btn=$('exoDiscoverBtn');
+  const old=btn.textContent;
+  btn.disabled=true; btn.textContent=t('exo-loading');
+  exoSetStatus('');
+  try{
+    const r=await fetch(EXO_BASE+'/discover?agent='+encodeURIComponent(exoAgent),{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    if(j.enabled===false){
+      exoSetStatus(j.note||t('exo-disabled'),true);   // 未启用如实报，不当失败
+    }else{
+      agentToast(t('exo-discover-ok')+' · '+t('exo-discover-stat',j.classes,j.offered,j.quiet,j.failed,j.skipped));
+    }
+    await exoLoad();
+  }catch(e){
+    exoSetStatus(t('exo-discover-fail')+'：'+(e&&e.message?e.message:''),true);
+  }finally{
+    btn.disabled=false; btn.textContent=old;
+  }
+}
+
+(function(){
+  const d=$('exoDiscoverBtn');
+  if(d) d.addEventListener('click',exoDiscover);
+})();
+
+// ============ 决策卡片页（§4.10：治理 · Governance）============
+// 已从人面撤下（范式改为「记忆提炼」页，见上）；后端 §4.10 与 39 单测原样保留，此处函数无入口。
+// 数据源走同源 /api/v1/exoskeleton/**（由 mo-server 转发到 mo-exoskeleton:8081）。
+// 页面不手动加鉴权头——全局 fetch 包装器已对同源 /api/ 请求自动注入 Authorization。
+const DEC_BASE='/api/v1/exoskeleton/cards';
+
+// 卡面一律用 DOM + textContent 构建，不用 innerHTML 拼串：
+// 卡片标题含「」、簇键含 |、note 含换行，拼串既易错又平添注入面。
+function decEl(tag,text,style){
+  const el=document.createElement(tag);
+  if(text!=null) el.textContent=text;
+  if(style) el.setAttribute('style',style);
+  return el;
+}
+function decBadge(text,fg,bg){
+  return decEl('span',text,'font-size:10.5px;font-weight:600;color:'+fg+';background:'+bg+';border-radius:4px;padding:2px 7px;flex:none');
+}
+function decSetStatus(msg,isErr){
+  const el=$('decStatusMsg');
+  if(el){ el.textContent=msg||''; el.style.color=isErr?'#C0392B':'var(--text-secondary)'; }
+}
+
+async function decisionLoad(){
+  const list=$('decListBody');
+  list.textContent='';
+  list.appendChild(decEl('div',t('dec-loading'),'font-size:12.5px;color:var(--text-secondary);padding:8px 2px'));
+  const include=$('decIncludeExpired')&&$('decIncludeExpired').checked;
+  let data;
+  try{
+    const r=await fetch(DEC_BASE+(include?'?includeExpired=true':''),{credentials:'same-origin'});
+    if(!r.ok){
+      let msg='HTTP '+r.status;
+      try{ const j=await r.json(); if(j&&j.error) msg=j.error; }catch(e){}
+      throw new Error(msg);
+    }
+    data=await r.json();
+  }catch(e){
+    // 取不到就如实报（含 503「外骨骼不可达」），不显示成「零张卡」那种看起来正常的假象。
+    list.textContent='';
+    list.appendChild(decEl('div',t('dec-err-load')+'：'+(e&&e.message?e.message:''),
+      'font-size:12.5px;color:#C0392B;padding:8px 2px;white-space:pre-wrap'));
+    decSetStatus(t('dec-err-load'),true);
+    return;
+  }
+  decSetStatus('');
+  decRenderStats(data.stats);
+  decRenderList(data.cards||[]);
+}
+
+function decRenderStats(s){
+  const card=$('decStatsCard'), body=$('decStatsBody');
+  if(!s){ card.style.display='none'; return; }
+  body.textContent='';
+  [[t('dec-stat-open'),s.open,'var(--text-primary)'],
+   [t('dec-stat-answered'),s.answered,'var(--text-secondary)'],
+   [t('dec-stat-expired'),s.expired,'var(--text-secondary)'],
+   [t('dec-stat-cap'),s.cap,'var(--text-secondary)']].forEach(([label,val,color])=>{
+    const box=decEl('div',null,'display:flex;flex-direction:column;gap:2px;min-width:64px');
+    box.appendChild(decEl('div',String(val==null?'-':val),'font-size:22px;font-weight:700;color:'+color+';line-height:1.1'));
+    box.appendChild(decEl('div',label,'font-size:11.5px;color:var(--text-dim)'));
+    body.appendChild(box);
+  });
+  if(s.note) body.appendChild(decEl('div',s.note,'flex-basis:100%;font-size:11.5px;color:var(--text-dim);margin-top:4px;white-space:pre-wrap'));
+  card.style.display='';
+}
+
+// 六个模板的触发情况（含未触发原因）——把「没触发」和「没问题」分开读。
+function decRenderTemplates(templates){
+  const card=$('decTmplCard'), body=$('decTmplBody');
+  if(!templates||!templates.length){ card.style.display='none'; return; }
+  body.textContent='';
+  templates.forEach(line=>body.appendChild(decEl('div',line,
+    'font-size:12px;color:var(--text-secondary);white-space:pre-wrap;border-left:2px solid var(--border-glass);padding-left:8px')));
+  card.style.display='';
+}
+
+function decRenderList(cards){
+  const list=$('decListBody');
+  list.textContent='';
+  if(!cards.length){
+    list.appendChild(decEl('div',t('dec-empty'),'font-size:12.5px;color:var(--text-secondary);padding:14px 2px'));
+    return;
+  }
+  cards.forEach(v=>list.appendChild(decCard(v)));
+}
+
+function decCard(view){
+  const c=view.card;
+  const wrap=decEl('div',null,'background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-card)');
+
+  // 头：模板徽标 + 标题 + 状态角标
+  const head=decEl('div',null,'display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px');
+  head.appendChild(decEl('span',c.template,'font-size:11px;font-weight:700;color:var(--color-primary);background:var(--color-primary-dim);border-radius:5px;padding:2px 7px;flex:none'));
+  head.appendChild(decEl('div',c.title,'font-size:14px;font-weight:700;color:var(--text-primary);flex:1;min-width:200px'));
+  if(view.status==='ANSWERED') head.appendChild(decBadge(t('dec-answered-badge'),'#1B7A4B','#E8F6EE'));
+  if(view.expired) head.appendChild(decBadge(t('dec-expired-badge'),'#8A6D1F','#FBF3E3'));
+  wrap.appendChild(head);
+
+  // 覆盖范围（簇键 chips）
+  if(c.subjects&&c.subjects.length){
+    const row=decEl('div',null,'display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:10px');
+    row.appendChild(decEl('span',t('dec-subjects')+'：','font-size:11.5px;color:var(--text-dim)'));
+    c.subjects.forEach(s=>row.appendChild(decEl('code',s,'font-size:11.5px;color:var(--text-secondary);background:#F4F5F7;border-radius:4px;padding:1px 6px')));
+    wrap.appendChild(row);
+  }
+
+  // 证据：每项带对照；better 决定绿/红
+  if(c.evidence&&c.evidence.length){
+    const box=decEl('div',null,'margin-bottom:12px');
+    box.appendChild(decEl('div',t('dec-evidence'),'font-size:11.5px;font-weight:600;color:var(--text-secondary);margin-bottom:5px'));
+    c.evidence.forEach(e=>{
+      const row=decEl('div',null,'display:flex;gap:8px;flex-wrap:wrap;font-size:12px;padding:3px 0;border-bottom:1px dashed #EFF1F4');
+      row.appendChild(decEl('span',e.label,'color:var(--text-dim);min-width:130px'));
+      const color=e.better===true?'#1B7A4B':(e.better===false?'#C0392B':'var(--text-primary)');
+      row.appendChild(decEl('span',String(e.value),'color:'+color+';font-weight:600'));
+      if(e.compare) row.appendChild(decEl('span',e.compare,'color:var(--text-dim)'));
+      box.appendChild(row);
+    });
+    wrap.appendChild(box);
+  }
+
+  // 三档选项：严格按后端返回顺序，不排序、不隐藏、不合并（§4.10.2 约束二）
+  const opts=decEl('div',null,'display:flex;flex-direction:column;gap:8px');
+  const answered=view.status==='ANSWERED';
+  (c.options||[]).forEach(o=>{
+    const isDefault=o.key===c.defaultOption;                    // 默认 = 「不动」（§4.10.2 约束一）
+    const isChosen=answered&&o.key===view.answer;
+    const btn=document.createElement('button');
+    btn.type='button';
+    btn.setAttribute('style','display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;text-align:left;padding:9px 12px;border-radius:var(--radius-sm);border:1px solid '
+      +(isChosen?'#3AA76D':'var(--border-glass)')+';background:'+(isChosen?'#E8F6EE':'transparent')
+      +';font-family:inherit;cursor:'+(answered?'default':'pointer')+';transition:all .15s');
+    const line=decEl('div',null,'display:flex;align-items:center;gap:7px;flex-wrap:wrap;width:100%');
+    line.appendChild(decEl('span',o.label,'font-size:12.5px;font-weight:600;color:var(--text-primary)'));
+    if(isDefault) line.appendChild(decEl('span',t('dec-default-badge'),'font-size:10.5px;color:var(--text-dim);border:1px solid var(--border-glass);border-radius:4px;padding:0 5px'));
+    if(isChosen) line.appendChild(decEl('span','✓','font-size:12.5px;color:#1B7A4B;margin-left:auto'));
+    btn.appendChild(line);
+    if(o.effect) btn.appendChild(decEl('div',o.effect,'font-size:11.5px;color:var(--text-secondary);white-space:pre-wrap'));  // 每档自带后果（§4.10.2 约束四）
+    if(!answered) btn.onclick=()=>decisionAnswer(c.cardId,o.key,btn);
+    opts.appendChild(btn);
+  });
+  wrap.appendChild(opts);
+
+  // 脚注：可逆性 / 有效期 / 逃逸口（§4.10.7：不占选项位）
+  const foot=decEl('div',null,'display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--text-dim)');
+  if(c.reversible) foot.appendChild(decEl('span',t('dec-reversible')+'：'+c.reversible));
+  if(c.expiresInDays) foot.appendChild(decEl('span',t('dec-expires')+'：'+c.expiresInDays+' '+t('dec-days')));
+  const esc=decEl('a',t('dec-escapade'),'margin-left:auto;color:var(--color-primary);cursor:pointer;text-decoration:underline');
+  esc.onclick=()=>decOpenModal(view);
+  foot.appendChild(esc);
+  wrap.appendChild(foot);
+
+  if(c.note) wrap.appendChild(decEl('div',c.note,'margin-top:10px;font-size:11.5px;color:var(--text-secondary);white-space:pre-wrap;border-top:1px dashed var(--border-glass);padding-top:8px'));
+  return wrap;
+}
+
+async function decisionGenerate(){
+  const btn=$('decGenerateBtn');
+  const old=btn.textContent;
+  btn.disabled=true; btn.textContent=t('dec-loading');
+  decSetStatus('');
+  try{
+    const r=await fetch(DEC_BASE+'/generate',{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    agentToast(t('dec-gen-ok')+' · 候选 '+j.candidates+' → 合并 -'+j.merged+' → 新建 '+j.created
+      +'（刷新 '+j.refreshed+' / 重提 '+j.reissued+' / 跳过 '+j.skipped+' / 抑制 '+j.suppressed+' / 排队 '+j.queued+'，上限 '+j.cap+'）');
+    decRenderTemplates(j.templates);
+    await decisionLoad();
+  }catch(e){
+    decSetStatus(t('dec-gen-ok')+' 失败：'+(e&&e.message?e.message:''),true);
+  }finally{
+    btn.disabled=false; btn.textContent=old;
+  }
+}
+
+async function decisionAnswer(cardId,key,btn){
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch(DEC_BASE+'/'+encodeURIComponent(cardId)+'/answer',{   // cardId 含 : 与 |，必须编码
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({answer:key})
+    });
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    agentToast(j.note||t('dec-answer-ok'));   // 后端 note 已如实写明后果（含「采纳≠生效，被闸门拦」），原样透出
+    await decisionLoad();
+  }catch(e){
+    if(btn) btn.disabled=false;
+    decSetStatus(t('dec-answer-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+// 逃逸口：把这张卡的原始读数摊开给人看（不占三档之一）
+function decOpenModal(view){
+  const c=view.card, body=$('decModalBody');
+  body.textContent='';
+  [['card_id',c.cardId],['template',c.template],['subjects',(c.subjects||[]).join('  ')],
+   ['defaultOption',c.defaultOption],['reversible',c.reversible||''],
+   ['expiresInDays',String(c.expiresInDays)],['status',view.status+'（expired='+view.expired+'）'],
+   ['answer',view.answer||'']].forEach(([k,v])=>{
+    const row=decEl('div',null,'display:flex;gap:10px;padding:3px 0');
+    row.appendChild(decEl('span',k,'color:var(--text-dim);min-width:110px;font-size:11.5px'));
+    row.appendChild(decEl('span',v,'font-size:12px;word-break:break-all'));
+    body.appendChild(row);
+  });
+  if(c.evidence&&c.evidence.length){
+    body.appendChild(decEl('div','证据原文','font-weight:600;margin:10px 0 4px'));
+    c.evidence.forEach(e=>body.appendChild(decEl('div',e.label+' = '+e.value+(e.compare?'（'+e.compare+'）':''),'font-size:12px;padding:2px 0')));
+  }
+  if(c.options&&c.options.length){
+    body.appendChild(decEl('div','选项原文','font-weight:600;margin:10px 0 4px'));
+    c.options.forEach(o=>body.appendChild(decEl('div',o.key+' · '+o.label+' —— '+o.effect,'font-size:12px;padding:2px 0')));
+  }
+  if(c.note) body.appendChild(decEl('div','note：'+c.note,'margin-top:10px;font-size:12px;color:var(--text-secondary);white-space:pre-wrap'));
+  $('decModal').style.display='flex';
+}
+function decCloseModal(){ const m=$('decModal'); if(m) m.style.display='none'; }
+
+(function(){
+  const g=$('decGenerateBtn'), rf=$('decRefreshBtn'), ie=$('decIncludeExpired');
+  if(g) g.addEventListener('click',decisionGenerate);
+  if(rf) rf.addEventListener('click',decisionLoad);
+  if(ie) ie.addEventListener('change',decisionLoad);
+})();
 // ============ Agent 对话（工作区 + 多 Agent，Agent 即会话） ============
 const agentChat=$('agentChat');
 const AGENT_AGENT_ID='workbench-dashboard';
@@ -5526,6 +6274,8 @@ const agentCommonCommands={
       '3. 用 open_webpage 工具把这个 HTML 文件展示到「工作区展示」面板。\n'+
       '4. 最后文字汇报你按什么维度分类、各类的数量与结论、报表保存路径。'
   },
+  // 注：本命令是「让 Agent 自由发挥」的人工兜底入口；正式的、数据驱动且按任务类型聚类的
+  // 技能发现口径在 mo-exoskeleton 的 SkillDiscoverer（system prompt 与本条措辞一致，以其为准）。
   discover:{
     title:'发现技能',
     prompt:'# 发现技能（WikiSkill 风格，严格模式）\n'+
@@ -6665,6 +7415,48 @@ async function importUpload(){
     el.innerHTML=html;
     loadAgents();   // 导入成功后刷新 Agent 候选列表（新 Agent 立即可选，无效值自动回填第一个）
   }catch(e){ el.innerHTML=`<span class="err">${t('empty-query-fail')(e.message)}</span>`; }
+}
+
+// 原始事件导出：走 fetch + Blob 而不是裸 <a href>，这样鉴权开启时也能带上 Authorization 头
+async function exportEvents(){
+  const btn=$('exportBtn');
+  const st=$('exportStatus');
+  const agent=($('exportAgent').value||'').trim();
+  const days=($('exportDays').value||'').trim();
+  const session=($('exportSession').value||'').trim();
+  const trace=($('exportTrace').value||'').trim();
+  const format=($('exportFormat')||{}).value||'jsonl';
+  const p=new URLSearchParams();
+  p.set('format',format);
+  p.set('days',days||'7');
+  if(agent) p.set('agent',agent);
+  if(session) p.set('session',session);
+  if(trace) p.set('trace',trace);
+  if(btn) btn.disabled=true;
+  st.textContent=t('export-running');
+  try{
+    const r=await fetch('/api/v1/export/events?'+p.toString());
+    if(!r.ok){
+      let msg='HTTP '+r.status;
+      try{ const d=await r.json(); if(d&&d.error) msg=d.error; }catch(e){}
+      st.innerHTML=`<span class="err">${t('export-fail')}${msg}</span>`;
+      return;
+    }
+    const blob=await r.blob();
+    const cd=r.headers.get('Content-Disposition')||'';
+    const m=/filename="?([^";]+)"?/i.exec(cd);
+    const fname=(m&&m[1])?m[1]:('mo-events.'+format);
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=fname;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    st.innerHTML=`<span class="ok">${t('export-done')} ${fname} (${Math.max(1,Math.round(blob.size/1024))} KB)</span>`;
+  }catch(e){
+    st.innerHTML=`<span class="err">${t('export-fail')}${e.message}</span>`;
+  }finally{
+    if(btn) btn.disabled=false;
+  }
 }
 
 // .log 文件批量导入：文件框多选 .log → 逐个交给后端（可大模型格式化）→ 写入 memory_events

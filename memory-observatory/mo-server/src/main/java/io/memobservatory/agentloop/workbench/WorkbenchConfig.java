@@ -86,10 +86,15 @@ public class WorkbenchConfig {
      * 旁路记忆观测中间件。endpoint 默认跟随本服务端口（self-host 下回传自身
      * /api/v1/events，与运行端口一致；可用 agent.report.endpoint 覆盖），
      * enabled=false 关闭采集。中间件为单例、可并发挂到多个 Agent 实例。
+     *
+     * <p>self-host 回传自身时，服务端若启用了接口鉴权（{@code MO_API_KEY} → {@code mo.auth.api-key}），
+     * 这条自上报同样要带 key，否则会被 {@code /api/**} 的 ApiKeyAuthFilter 以 401 拒收。
+     * 故这里把同一个 key 透传给上报器；未配置鉴权时为空，不带鉴权头。
      */
     @Bean
     public MemoryReportMiddleware memoryReportMiddleware(
             @Value("${agent.report.endpoint:}") String endpoint,
+            @Value("${agent.report.api-key:${mo.auth.api-key:}}") String reportApiKey,
             @Value("${server.port:8080}") int serverPort,
             @Value("${agent.report.enabled:true}") boolean enabled) {
         String effective = (endpoint == null || endpoint.isBlank())
@@ -99,6 +104,7 @@ public class WorkbenchConfig {
         // 使事件详情 / Token 分析按真实工作区 Agent 切片，而非折叠成单一 WorkbenchAgent。
         ReportConfig config = ReportConfig.builder()
                 .endpoint(effective)
+                .apiKey(reportApiKey)
                 .enabled(enabled)
                 .build();
         return new MemoryReportMiddleware(config);
@@ -208,6 +214,7 @@ public class WorkbenchConfig {
                                          TaskBoard taskBoard, WorkflowRunStore runStore,
                                          WorkspaceLockRegistry lockRegistry,
                                          @Value("${agent.report.endpoint:}") String endpoint,
+                                         @Value("${agent.report.api-key:${mo.auth.api-key:}}") String reportApiKey,
                                          @Value("${server.port:8080}") int serverPort,
                                          @Value("${agent.report.enabled:true}") boolean reportEnabled) {
         // 工作流阶段观测走同一旁路上报通道（/api/v1/events），异常 WARN 不阻断
@@ -215,7 +222,7 @@ public class WorkbenchConfig {
         if (reportEnabled) {
             String effective = (endpoint == null || endpoint.isBlank())
                     ? "http://localhost:" + serverPort + "/api/v1/events" : endpoint;
-            reporter = new EventReporter(effective);
+            reporter = new EventReporter(effective, reportApiKey);
         }
         return new WorkflowEngine(agentFactory, workflowConfig, reporter, workspaceManager,
                 buildVerifier, taskBoard, runStore, lockRegistry);

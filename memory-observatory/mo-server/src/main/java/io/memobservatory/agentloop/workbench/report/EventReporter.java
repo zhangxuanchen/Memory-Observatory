@@ -33,17 +33,24 @@ public class EventReporter {
     private static final Logger log = LoggerFactory.getLogger(EventReporter.class);
 
     private final String endpoint;
+    private final String apiKey;
     private final HttpClient http;
     private final ObjectMapper mapper = new ObjectMapper();
 
     /** 默认超时 5s；服务端批量 flush 与单条走 IMMEDIATE 写库。 */
     private static final Duration TIMEOUT = Duration.ofSeconds(5);
 
-    public EventReporter(String endpoint) {
+    /**
+     * @param endpoint 服务端地址，如 {@code http://localhost:8080/api/v1/events}
+     * @param apiKey   服务端接口鉴权密钥（对应 {@code mo.auth.api-key}）；留空则不带鉴权头。
+     *                 与 mo_sdk 的 exporter 一致，走 {@code Authorization: Bearer <key>}。
+     */
+    public EventReporter(String endpoint, String apiKey) {
         if (endpoint == null || endpoint.isBlank()) {
             throw new IllegalArgumentException("endpoint must not be blank");
         }
         this.endpoint = endpoint;
+        this.apiKey = apiKey;
         this.http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build();
     }
 
@@ -56,12 +63,16 @@ public class EventReporter {
     public boolean report(Map<String, Object> fields) {
         try {
             String body = mapper.writeValueAsString(fields != null ? fields : Map.of());
-            HttpRequest req = HttpRequest.newBuilder()
+            HttpRequest.Builder rb = HttpRequest.newBuilder()
                     .uri(URI.create(endpoint))
                     .timeout(TIMEOUT)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
+                    .header("Content-Type", "application/json");
+            // 服务端启用接口鉴权（MO_API_KEY）时，自上报同样要带 key，否则会被 /api/** 的
+            // ApiKeyAuthFilter 以 401 拒收——工作台事件将一条也进不了库。
+            if (apiKey != null && !apiKey.isBlank()) {
+                rb.header("Authorization", "Bearer " + apiKey);
+            }
+            HttpRequest req = rb.POST(HttpRequest.BodyPublishers.ofString(body)).build();
             HttpResponse<String> resp = http.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() >= 200 && resp.statusCode() < 300) {
                 if (log.isDebugEnabled()) log.debug("event reported: {} -> {}", fields.get("eventId"), resp.statusCode());

@@ -85,6 +85,29 @@ bash scripts/setup-laya-backend.sh          # 建 venv + 装依赖
 bash scripts/setup-laya-backend.sh --check  # 只体检
 ```
 
+## 记忆外骨骼（mo-exoskeleton）相关
+
+工作台的「治理 → 决策」页展示 §4.10 的决策卡片，数据来自 `mo-exoskeleton`（L6 落地模块，
+独立应用，默认 `:8081`，**已纳入 docker-compose**，随 `docker compose up -d` 一起就绪）。
+页面不直连它，而是同源调 `/api/v1/exoskeleton/**`，由 mo-server 转发——这样能复用既有的
+鉴权通道，页面也不必硬编码端口。
+
+它跑起来**不需要任何额外配置**：`docker compose up -d` 之后直接用即可。下面这个变量只在
+「改基址」或「本机直接跑 mo-server（不经 compose）」时才需要关心。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `MO_EXOSKELETON_BASE_URL` | `http://localhost:8081` | 外骨骼基址。**容器部署无需设置**——compose 会注入服务名 `http://mo-exoskeleton:8081`；默认值是给「本机直接跑 mo-server + 本机跑外骨骼」这个开发场景用的 |
+
+它还会读 `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`，但**只用于「任务类型分类」**
+（`POST /api/v1/exoskeleton/tasks/classify`，手动触发）。留空即该端点如实报未启用，
+不影响出卡与作答。容器内经 `host.docker.internal` 访问本机 Ollama（与 mo-server 同一约定）。
+
+**怎么确认它真的生效**：`docker compose up -d` 后（或本机 `cd mo-exoskeleton && mvn spring-boot:run`），
+`GET /api/v1/exoskeleton/cards`——应返回 `cards` / `stats` / `note` 三块。若它没起来，
+该路径**如实回 503** 并说明「mo-exoskeleton 不可达」，不会伪装成空列表；此时页面上会显示
+红色错误文案，点右上角「刷新」可重试。
+
 ## 密钥优先级
 
 模型调用密钥的取值顺序：**界面「模型密钥」配置（加密落盘）> `DASHSCOPE_API_KEY` 环境变量**。

@@ -14,12 +14,14 @@ package io.memobservatory.agentloop.workbench.report;
  * @param agentName    Agent 名（agentId），可被运行时 ctx 覆盖
  * @param defaultLayer 事件默认层，缺省 "skill"
  * @param enabled      上报开关，false 则全部旁路丢弃
+ * @param apiKey       服务端接口鉴权密钥（对应 mo.auth.api-key）。留空则不带上鉴权头
  */
 public record ReportConfig(
         String endpoint,
         String agentName,
         String defaultLayer,
-        boolean enabled) {
+        boolean enabled,
+        String apiKey) {
 
     public static Builder builder() {
         return new Builder();
@@ -30,6 +32,7 @@ public record ReportConfig(
         private String agentName;
         private String defaultLayer = "skill";
         private boolean enabled = true;
+        private String apiKey;
 
         public Builder endpoint(String endpoint) {
             this.endpoint = endpoint;
@@ -51,11 +54,17 @@ public record ReportConfig(
             return this;
         }
 
+        /** 服务端接口鉴权密钥。不配则上报不带鉴权头（服务端未启用鉴权的场景）。 */
+        public Builder apiKey(String apiKey) {
+            this.apiKey = apiKey;
+            return this;
+        }
+
         public ReportConfig build() {
             if (endpoint == null || endpoint.isBlank()) {
                 throw new IllegalArgumentException("endpoint is required");
             }
-            return new ReportConfig(endpoint, agentName, defaultLayer, enabled);
+            return new ReportConfig(endpoint, agentName, defaultLayer, enabled, apiKey);
         }
     }
 }

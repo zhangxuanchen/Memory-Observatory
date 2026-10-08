@@ -100,7 +100,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
 
     public MemoryReportMiddleware(ReportConfig config) {
         this.config = config;
-        this.reporter = new EventReporter(config.endpoint());
+        this.reporter = new EventReporter(config.endpoint(), config.apiKey());
     }
 
     @Override
@@ -144,7 +144,8 @@ public class MemoryReportMiddleware implements MiddlewareBase {
     private void observe(Agent agent, RuntimeContext ctx, AgentEvent ev, TurnState turn) {
         try {
             if (ev instanceof ModelCallStartEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "model", "model:" + agentId(agent), "模型调用开始");
+                reportLifecycle(agent, ctx, ev, turn, "model", "model:" + agentId(agent), "模型调用开始",
+                        IoKind.MODEL_CALL);
             } else if (ev instanceof ModelCallEndEvent m) {
                 reportModelCall(agent, ctx, m, turn);
             } else if (ev instanceof ThinkingBlockDeltaEvent t) {
@@ -166,16 +167,19 @@ public class MemoryReportMiddleware implements MiddlewareBase {
                 reportToolCall(agent, ctx, s, turn);
             } else if (ev instanceof ToolCallEndEvent s) {
                 String n = toolName(s.getToolCallName());
-                reportLifecycle(agent, ctx, ev, turn, "skill", "tool:" + n + ":end", "工具结束 · " + n);
+                reportLifecycle(agent, ctx, ev, turn, "skill", "tool:" + n + ":end", "工具结束 · " + n,
+                        IoKind.ofTool(n));
             } else if (ev instanceof ToolResultTextDeltaEvent s) {
                 accumulate(turn.toolResult, s.getToolCallId(), s.getDelta());
             } else if (ev instanceof ToolResultEndEvent s) {
                 reportToolResultEnd(agent, ctx, s, turn);
             } else if (ev instanceof AgentStartEvent s) {
                 reportLifecycle(agent, ctx, ev, turn, "agent", "agent:start",
-                        "Agent 启动 · " + (s.getName() == null ? agentId(agent) : s.getName()));
+                        "Agent 启动 · " + (s.getName() == null ? agentId(agent) : s.getName()),
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof AgentEndEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "agent", "agent:end", "Agent 结束");
+                reportLifecycle(agent, ctx, ev, turn, "agent", "agent:end", "Agent 结束",
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof AgentResultEvent r) {
                 // 记录最终产出，作为 Turn 主事件的 turn_outcome
                 if (r.getResult() != null) {
@@ -184,28 +188,34 @@ public class MemoryReportMiddleware implements MiddlewareBase {
                 }
             } else if (ev instanceof ExceedMaxItersEvent e) {
                 reportLifecycle(agent, ctx, ev, turn, "control", "agent:max-iters",
-                        "超过最大迭代次数 " + e.getMaxIters() + " 次，已终止");
+                        "超过最大迭代次数 " + e.getMaxIters() + " 次，已终止", IoKind.LIFECYCLE);
             } else if (ev instanceof AllToolsDeniedEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "skill", "tool:denied", "所有工具调用被拒绝");
+                reportLifecycle(agent, ctx, ev, turn, "skill", "tool:denied", "所有工具调用被拒绝",
+                        IoKind.TOOL_OTHER);
             } else if (ev instanceof RequireUserConfirmEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:confirm", "需要用户确认工具调用");
+                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:confirm", "需要用户确认工具调用",
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof UserConfirmResultEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:confirm-result", "用户已响应确认");
+                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:confirm-result", "用户已响应确认",
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof RequireExternalExecutionEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:external-exec", "需要外部执行工具");
+                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:external-exec", "需要外部执行工具",
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof ExternalExecutionResultEvent) {
-                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:external-exec-result", "外部执行结果已返回");
+                reportLifecycle(agent, ctx, ev, turn, "hitl", "hitl:external-exec-result", "外部执行结果已返回",
+                        IoKind.LIFECYCLE);
             } else if (ev instanceof RequestStopEvent s) {
                 reportLifecycle(agent, ctx, ev, turn, "control", "agent:stop",
-                        "请求停止 · " + s.getReason());
+                        "请求停止 · " + s.getReason(), IoKind.LIFECYCLE);
             } else if (ev instanceof SubagentExposedEvent s) {
                 reportLifecycle(agent, ctx, ev, turn, "agent", "agent:subagent",
-                        "子Agent 暴露 · " + s.getSubagentId());
+                        "子Agent 暴露 · " + s.getSubagentId(), IoKind.LIFECYCLE);
             } else if (ev instanceof HintBlockEvent h) {
-                reportLifecycle(agent, ctx, ev, turn, "hint", "hint:" + h.getHintSource(), "提示：" + h.getHint());
+                reportLifecycle(agent, ctx, ev, turn, "hint", "hint:" + h.getHintSource(),
+                        "提示：" + h.getHint(), IoKind.LIFECYCLE);
             } else if (ev instanceof CustomEvent c) {
                 reportLifecycle(agent, ctx, ev, turn, "custom", "custom:" + c.getName(),
-                        "自定义事件 · " + c.getName());
+                        "自定义事件 · " + c.getName(), IoKind.LIFECYCLE);
             }
         } catch (Exception e) {
             log.warn("memory observe failed: {}", e.toString());
@@ -231,7 +241,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
         f.put("tokenCount", total);
         f.put("latencyMs", u != null ? (long) (u.getTime() * 1000L) : 0L);
         turn.totalTokens += total;
-        attachAction(turn, f, detail);
+        attachAction(turn, f, detail, IoKind.MODEL_CALL);
         reporter.report(f);
     }
 
@@ -245,7 +255,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
         f.put("memoryKey", "tool:" + name);
         String detail = "工具调用 · " + name + (ev.getToolCallId() != null ? " · " + ev.getToolCallId() : "");
         f.put("memorySummary", detail);
-        attachAction(turn, f, detail);
+        attachAction(turn, f, detail, IoKind.ofTool(name));
         if (ev.getToolCallId() != null) {
             turn.toolStartNanos.put(ev.getToolCallId(), System.nanoTime());
         }
@@ -292,7 +302,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
         String detail = prefix + content;
         f.put("memorySummary", detail);
         f.put("tokenCount", 0);
-        attachAction(turn, f, detail);
+        attachAction(turn, f, detail, IoKind.MODEL_CALL);
         reporter.report(f);
     }
 
@@ -316,7 +326,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
         if (startNanos != null) {
             f.put("latencyMs", (System.nanoTime() - startNanos) / 1_000_000L);
         }
-        attachAction(turn, f, detail);
+        attachAction(turn, f, detail, IoKind.ofTool(name));
         // 状态结构化：ERROR→failed（问题检测/Trace 汇总判定用），其余写原值小写
         if (ev.getState() != null) {
             Object meta = f.get("metadata");
@@ -332,7 +342,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
 
     /** 一次性事件统一上报（生命周期 / 人机协同 / 控制 / 提示 / 自定义）。 */
     private void reportLifecycle(Agent agent, RuntimeContext ctx, AgentEvent ev, TurnState turn,
-                                 String layer, String memoryKey, String summary) {
+                                 String layer, String memoryKey, String summary, String ioKind) {
         Map<String, Object> f = base(agent, ctx, "WRITE", layer);
         f.put("memoryKey", memoryKey);
         f.put("memorySummary", summary);
@@ -342,9 +352,10 @@ public class MemoryReportMiddleware implements MiddlewareBase {
             Map<String, String> meta = new LinkedHashMap<>();
             meta.put("turn_message_id", turn.turnMessageId);
             meta.put("source", ev.getSource());
+            meta.put("io_kind", ioKind);
             f.put("metadata", meta);
         } else {
-            attachAction(turn, f, summary);
+            attachAction(turn, f, summary, ioKind);
         }
         reporter.report(f);
     }
@@ -376,6 +387,7 @@ public class MemoryReportMiddleware implements MiddlewareBase {
             if (turn.outcome != null && !turn.outcome.isBlank()) meta.put("turn_outcome", turn.outcome);
             meta.put("action_count", String.valueOf(turn.actionIdx));
             if (!turn.actions.isEmpty()) meta.put("turn_actions", toJsonArray(turn.actions));
+            meta.put("io_kind", IoKind.LIFECYCLE);
             f.put("metadata", meta);
 
             f.put("memorySummary", (turn.outcome != null && !turn.outcome.isBlank())
@@ -386,13 +398,15 @@ public class MemoryReportMiddleware implements MiddlewareBase {
         }
     }
 
-    /** 给 action 子事件打上 turn 分组元数据（turn_message_id + action_idx + action_full）。 */
-    private void attachAction(TurnState turn, Map<String, Object> fields, String actionFull) {
+    /** 给 action 子事件打上 turn 分组元数据（turn_message_id + action_idx + action_full + io_kind）。
+     *  io_kind 是 B4 埋点补强的产物：事件性质归一，供 §4.4 分桶判「有没有工具读 / 是否只读未写」。 */
+    private void attachAction(TurnState turn, Map<String, Object> fields, String actionFull, String ioKind) {
         if (turn == null) return;
         Map<String, String> meta = new LinkedHashMap<>();
         meta.put("turn_message_id", turn.turnMessageId);
         meta.put("action_idx", String.valueOf(turn.actionIdx));
         if (actionFull != null && !actionFull.isBlank()) meta.put("action_full", actionFull);
+        meta.put("io_kind", ioKind);
         // 与 action_idx 一一对应，收集到 TurnState 供主事件写 turn_actions
         turn.actions.add(actionFull == null ? "" : actionFull);
         fields.put("metadata", meta);
