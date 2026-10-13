@@ -1,0 +1,10 @@
+# 仓库根 .gitignore：git 根在本目录，子项目 memory-observatory/ 另有自己的 .gitignore。
+# 这里只兜住根层级的系统 / 编辑器产物。
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# IDE / 编辑器（根级）
+.vscode/
+.idea/

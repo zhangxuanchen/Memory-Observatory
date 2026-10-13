@@ -33,6 +33,15 @@ keys.json
 *.log
 !test-logs/
 !test-logs/**
+# test-logs 里的示例样本要留，但手动导出的数据库备份不放进去（体量大、可再生）
+# 位置须在 !test-logs/** 之后，后匹配规则生效
+*.bak
+*.bak.*
+test-logs/backups/
+
+# ===== 本地 SQLite / 临时数据 =====
+*.sqlite
+*.sqlite3
 
 # ===== 操作系统 =====
 .DS_Store
