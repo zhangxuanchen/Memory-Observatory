@@ -8,3 +8,7 @@ Thumbs.db
 # IDE / 编辑器（根级）
 .vscode/
 .idea/
+
+# ===== 本地宣传物料（不提交）=====
+# 小红书营销文案，属个人运营内容，不进公开仓库
+token-usage-assistant/小红书宣传/
