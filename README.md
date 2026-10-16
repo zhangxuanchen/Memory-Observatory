@@ -6,7 +6,73 @@ Memory Observatory 在 Agent 运行时旁路采集记忆操作事件（读 / 写
 
 ---
 
-![Memory Observatory · 总览看板](https://github.com/user-attachments/assets/0bc7d2c7-0969-4d4b-aea0-85442a2cdc58)
+## 界面预览
+
+### 观测
+
+**总览** — Agent / 事件 / 会话 KPI 与问题告警聚合
+
+![总览](https://github.com/user-attachments/assets/0bc7d2c7-0969-4d4b-aea0-85442a2cdc58)
+
+**事件详情** — 记忆事件流、会话时间线、胶囊筛选与详情抽屉
+
+![事件详情](https://github.com/user-attachments/assets/3c41b7ab-96f3-42e5-934a-16ca83650916)
+
+![事件详情 · Trace 链路与记忆分层](https://github.com/user-attachments/assets/50821800-58a7-4f23-9ed1-ea72f89a36bc)
+
+**记忆层级** — 五层记忆结构与 Token 分布
+
+![记忆层级](https://github.com/user-attachments/assets/4cf0bb32-4510-4e82-8960-4ff9ab61789b)
+
+### 分析
+
+**Token 分析** — 多维度聚合、延迟分位、Top10 记忆键与五区预算
+
+![Token 分析](https://github.com/user-attachments/assets/aef145f7-b04b-4a35-94cf-a6bc4dcff03c)
+
+![Token 分析 · 五区快照与趋势](https://github.com/user-attachments/assets/fb2315af-ea3d-4230-a572-64f7c1ac4710)
+
+**Agent 分析** — 多 Agent 横向对比与综合评分
+
+![Agent 分析](https://github.com/user-attachments/assets/a92257ee-bf21-4869-b433-40d0837d9195)
+
+**Skill 分析** — Skill 调用次数与 Token 消耗 Top10
+
+![Skill 分析](https://github.com/user-attachments/assets/d5ab213b-d806-4731-b380-380d7792b4bf)
+
+**问题分析** — 慢调用 / 循环震荡 / 频繁压缩 / 遗忘风暴自动识别
+
+![问题分析](https://github.com/user-attachments/assets/6079f410-2910-4b5e-8176-5d5d9a90b04c)
+
+![问题分析 · 问题节点详情与红点锚点](https://github.com/user-attachments/assets/1893e8ea-1129-40db-adb5-9ec5cfe5576d)
+
+**流程分析** — 会话执行流程图与关键路径标注
+
+![流程分析](https://github.com/user-attachments/assets/0f3b23ec-f957-42b8-b561-3605eca1f1bd)
+
+![流程分析 · 问题节点高亮](https://github.com/user-attachments/assets/2af2bdb1-a232-49e3-ae76-12b8b6e6f8b6)
+
+**内容风险监测** — 记忆/对话内容风险规则扫描与命中详情
+
+![内容风险监测](https://github.com/user-attachments/assets/36949e7a-8bdd-4bcd-aea2-605e00ce914a)
+
+### 数据导入
+
+**数据导入** — xlsx/json 批量导入、文件夹 `.log` 导入与接入包下载
+
+![数据导入](https://github.com/user-attachments/assets/e6dff735-62cd-4ac7-b4c6-0f802b70eb17)
+
+### Agent · Playground
+
+**Agent 工作台** — 多子 Agent 工作区、SSE 气泡流与思考树
+
+![工作区](https://github.com/user-attachments/assets/6a7abc51-2755-487c-a558-3575f82bdf8a)
+
+![工作区 · 任务派发与阶段验收](https://github.com/user-attachments/assets/c15d293d-6598-4ff6-bbb3-7d10bb33d0e3)
+
+**Skill 管理** — 工作区级 / Agent 级技能维护
+
+![Skill 管理](https://github.com/user-attachments/assets/a6bbbe86-f7ef-4f54-a94e-195588fa8d63)
 
 ---
 
@@ -183,76 +249,6 @@ python3 examples/trae_report_event.py \
 
 ---
 
-## 界面预览
-
-### 观测
-
-**总览** — Agent / 事件 / 会话 KPI 与问题告警聚合
-
-![总览](https://github.com/user-attachments/assets/0bc7d2c7-0969-4d4b-aea0-85442a2cdc58)
-
-**事件详情** — 记忆事件流、会话时间线、胶囊筛选与详情抽屉
-
-![事件详情](https://github.com/user-attachments/assets/3c41b7ab-96f3-42e5-934a-16ca83650916)
-
-![事件详情 · Trace 链路与记忆分层](https://github.com/user-attachments/assets/50821800-58a7-4f23-9ed1-ea72f89a36bc)
-
-**记忆层级** — 五层记忆结构与 Token 分布
-
-![记忆层级](https://github.com/user-attachments/assets/4cf0bb32-4510-4e82-8960-4ff9ab61789b)
-
-### 分析
-
-**Token 分析** — 多维度聚合、延迟分位、Top10 记忆键与五区预算
-
-![Token 分析](https://github.com/user-attachments/assets/aef145f7-b04b-4a35-94cf-a6bc4dcff03c)
-
-![Token 分析 · 五区快照与趋势](https://github.com/user-attachments/assets/fb2315af-ea3d-4230-a572-64f7c1ac4710)
-
-**Agent 分析** — 多 Agent 横向对比与综合评分
-
-![Agent 分析](https://github.com/user-attachments/assets/a92257ee-bf21-4869-b433-40d0837d9195)
-
-**Skill 分析** — Skill 调用次数与 Token 消耗 Top10
-
-![Skill 分析](https://github.com/user-attachments/assets/d5ab213b-d806-4731-b380-380d7792b4bf)
-
-**问题分析** — 慢调用 / 循环震荡 / 频繁压缩 / 遗忘风暴自动识别
-
-![问题分析](https://github.com/user-attachments/assets/6079f410-2910-4b5e-8176-5d5d9a90b04c)
-
-![问题分析 · 问题节点详情与红点锚点](https://github.com/user-attachments/assets/1893e8ea-1129-40db-adb5-9ec5cfe5576d)
-
-**流程分析** — 会话执行流程图与关键路径标注
-
-![流程分析](https://github.com/user-attachments/assets/0f3b23ec-f957-42b8-b561-3605eca1f1bd)
-
-![流程分析 · 问题节点高亮](https://github.com/user-attachments/assets/2af2bdb1-a232-49e3-ae76-12b8b6e6f8b6)
-
-**内容风险监测** — 记忆/对话内容风险规则扫描与命中详情
-
-![内容风险监测](https://github.com/user-attachments/assets/36949e7a-8bdd-4bcd-aea2-605e00ce914a)
-
-### 数据导入
-
-**数据导入** — xlsx/json 批量导入、文件夹 `.log` 导入与接入包下载
-
-![数据导入](https://github.com/user-attachments/assets/e6dff735-62cd-4ac7-b4c6-0f802b70eb17)
-
-### Agent · Playground
-
-**Agent 工作台** — 多子 Agent 工作区、SSE 气泡流与思考树
-
-![工作区](https://github.com/user-attachments/assets/6a7abc51-2755-487c-a558-3575f82bdf8a)
-
-![工作区 · 任务派发与阶段验收](https://github.com/user-attachments/assets/c15d293d-6598-4ff6-bbb3-7d10bb33d0e3)
-
-**Skill 管理** — 工作区级 / Agent 级技能维护
-
-![Skill 管理](https://github.com/user-attachments/assets/a6bbbe86-f7ef-4f54-a94e-195588fa8d63)
-
----
-
 ## 配置与环境变量
 
 | 变量 | 作用于 | 默认 | 说明 |
@@ -327,9 +323,10 @@ python examples/otel_demo.py
 
 ---
 
-## 交流与反馈
 
-项目持续迭代中。使用问题、定制需求或 Agent 相关交流，欢迎通过 Issue 或[小红书主页](https://www.xiaohongshu.com/user/profile/645ef34b0000000029011e88)留言。
+## 讨论区
+项目持续优化中，需要Agent制作、定制、答疑请到小红书下留言
+44 【Agent 失控、循环 终于有监控面板了 - 深空制造 | 小红书 - 你的生活兴趣社区】 😆 5mt9NdOe15J1hlb 😆 https://www.xiaohongshu.com/discovery/item/6aa10915000000001200107e?source=webshare&xhsshare=pc_web&xsec_token=YB88XVQq4yoK_B2XqmD1DpFh8Rh788CHbFDGyDLNOWy9g=&xsec_source=pc_share
 
 ---
 
