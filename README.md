@@ -6,10 +6,7 @@ Memory Observatory 在 Agent 运行时旁路采集记忆操作事件（读 / 写
 
 ---
 
-
-## 讨论区
-项目持续优化中，需要Agent制作、定制、答疑请到小红书下留言
-44 【Agent 失控、循环 终于有监控面板了 - 深空制造 | 小红书 - 你的生活兴趣社区】 😆 5mt9NdOe15J1hlb 😆 https://www.xiaohongshu.com/discovery/item/6aa10915000000001200107e?source=webshare&xhsshare=pc_web&xsec_token=YB88XVQq4yoK_B2XqmD1DpFh8Rh788CHbFDGyDLNOWy9g=&xsec_source=pc_share
+![Memory Observatory · 总览看板](https://github.com/user-attachments/assets/0bc7d2c7-0969-4d4b-aea0-85442a2cdc58)
 
 ---
 
@@ -330,6 +327,11 @@ python examples/otel_demo.py
 
 ---
 
+## 交流与反馈
+
+项目持续迭代中。使用问题、定制需求或 Agent 相关交流，欢迎通过 Issue 或[小红书主页](https://www.xiaohongshu.com/user/profile/645ef34b0000000029011e88)留言。
+
+---
 
 ## License
 
