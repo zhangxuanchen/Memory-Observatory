@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>io.memobservatory</groupId>
+    <artifactId>mo-support</artifactId>
+    <version>0.1.0</version>
+    <name>Memory Observatory Support</name>
+    <description>支撑能力（原 mo-server 的 excel/export/notify/risk 下沉）：导出、告警推送、内容风险扫描、Excel 交换</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.release>17</maven.compiler.release>
+        <lombok.version>1.18.44</lombok.version>
+    </properties>
+
+    <dependencies>
+        <!-- 只依赖中立契约（叶子）：经端口调用 server 侧的仓储/分析能力，不反向依赖 mo-server -->
+        <dependency>
+            <groupId>io.memobservatory</groupId>
+            <artifactId>mo-contract</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+        <!-- JdbcTemplate：告警仓储与内容风险扫描直读事件表（只读） -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <!-- 共享 Web 安全组件（security/ApiKeyAuthFilter）只需编译期可见 servlet/spring-web；
+             provided 不参与传递——容器由消费方（mo-server / mo-exoskeleton）自己携带。 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- PostgreSQL JDBC：AlertRepository 用 PGobject 写 jsonb 列 -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <!-- ObjectMapper：告警载荷序列化 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <!-- Apache POI：Excel 模板生成与批量导入解析（与 mo-server 同口径） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml-full</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+        <!-- POI 5.2.5 传递依赖钉在 commons-io 2.15.0，但 commons-compress 1.27.1
+             需要 2.16+ 的 FileTimes.isUnixTime(FileTime)，显式覆盖为 2.16.1 -->
+        <dependency>
+            <groupId>commons-io</groupId>
+            <artifactId>commons-io</artifactId>
+            <version>2.16.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

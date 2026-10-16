@@ -18,12 +18,22 @@ public record TaskClassifyReport(
         int candidates,                // 本轮「还没分类完」的 session 数
         int classified,                // 成功回写的 session 数
         int failed,                    // LLM 不可达 / 解析失败（保持 NULL，下轮自动重试）
+        long staleTurns,               // 回写后仍属「旧口径」的 turn 数（task_type 有值但版本不是当前版本）
         List<String> agents,           // 本轮成功分类涉及的 Agent（去重；收尾按 Agent 逐个提炼技能）
         Map<String, Long> byTaskType,  // 本次新写入的取值分布
         List<Sample> samples,          // 抽检样本（≤20 条）
+        List<Failure> failures,        // 本轮失败留痕：哪个 session、为什么失败（不猜、保持 NULL 下轮重试）
         String note                    // 口径说明
 ) {
     /** 抽检样本：一条 session 的判定结果与人可读的备注。 */
     public record Sample(String sessionId, String taskType, String note) {
+    }
+
+    /**
+     * 失败留痕：{@code summary} 是该 session 的首条提问摘要（便于人认出是哪个会话），
+     * {@code reason} 是最后一次异常消息（截断 ≤200 字）。有了它才答得出
+     * 「哪个 session 为什么失败」，而不是只看得到一个 {@code failed} 计数。
+     */
+    public record Failure(String sessionId, String summary, String reason) {
     }
 }

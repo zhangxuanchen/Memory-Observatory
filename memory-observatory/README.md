@@ -44,7 +44,7 @@ Web 界面（侧边栏四大功能区）：
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  Agent 进程（Python / Java / 任意语言）                         │
-│  mo_sdk 拦截器 · trae_report_event.py CLI · MCP 上报包          │
+│  mo_sdk 拦截器 · mo_ingest 接入层（hook/log）· MCP 上报包       │
 └───────────────┬──────────────────────────────────────────────┘
                 │ OTLP/HTTP JSON（/v1/traces）· REST（/api/v1/events）
                 ▼
@@ -159,19 +159,18 @@ observer.record_event(...); observer.export()
 
 属性对齐 OpenTelemetry GenAI 语义约定（`memory.*` 命名空间）。Hermes 框架可直接用 `hermes_instrumentation.py` 一键猴子补丁插桩。
 
-### 2. 零依赖 CLI 上报
+### 2. 统一接入层 mo_ingest（零依赖）
 
-`examples/trae_report_event.py`（仅用标准库），适合 Agent 以 RunCommand 方式逐事件上报：
+`mo_ingest/` 是接入所有 Agent 的统一入口：两种接入方案（**hook 实时旁路** / **log 旁路日志批量**），纯标准库、不依赖 `mo_sdk`，接入时按平台可选。从这一层出去的都是标准化契约数据（`io_kind` / `operation` / turn 埋点键，见 ARCHITECTURE.md §4.2）。
 
 ```bash
-export MO_API_KEY=<key>            # 启用鉴权时
-python3 examples/trae_report_event.py \
-  --operation WRITE --layer prompt --memory-key MEMORY.md \
-  --summary "读取项目记忆" --token-count 1200 --session-id my-session
-# 经 nginx HTTPS 自签证书上报时加 --insecure 或 MO_INSECURE=1
+python3 -m mo_ingest list                                          # 列出可用平台与模式
+python3 -m mo_ingest --platform trae --mode log --since 20260801 --send       # 批量导入历史会话
+python3 -m mo_ingest --platform workbuddy --mode log               # 默认只分析，不写库
+echo '{...}' | python3 -m mo_ingest --platform qoder --mode hook   # hook 侧读 stdin（由 Qoder 调用）
 ```
 
-支持 `--trace-id` / `--parent-span-id` / `--meta k=v` 链式构建 Trace。
+首批平台：`qoder`（hook · `qoder_hook`）/ `trae`（log · `trae_importer`）/ `workbuddy`（log · `workbuddy_importer`）。新增平台只需在 `mo_ingest/registry.py` 登记一行；服务端家族归类见 ARCHITECTURE.md §7.3。
 
 ### 3. MCP / Skill 接入包
 
@@ -261,7 +260,11 @@ memory_skill_proposals（PENDING / ADOPTED / DISMISSED）
 
 ### 少打扰（幂等）
 
-`memory_skill_proposals` 用「证据指纹」`sha256(agent_id + task_type + 对话摘要)` 判重：指纹没变 → 本轮**不送 LLM、不重复落**（既不重复打扰人，也不白花一次模型调用）；已采纳的不再动；已点过「不用」但证据变了的，允许重新提上来。所以「重新提炼」可以放心反复点。
+`memory_skill_proposals` 用「证据指纹」`sha256(agent_id + task_type + 对话摘要)` 判重：指纹没变 → 本轮**不送 LLM、不重复落**（既不重复打扰人，也不白花一次模型调用）；已采纳的不再动；已点过「不用」但证据变了的，允许重新提上来。所以「重新提炼」可以放心反复点——**同一 Agent 正在跑时再点，也只会被如实告知「正在提炼中」，不会重复发起一次模型调用**。
+
+### 不干等、可中止
+
+一次提炼要逐类调模型，可能跑上几分钟。「重新提炼」因此是**异步**的：点下即返回，页面每 2 秒轮询进度（`已完成 / 总共几类 · 当前类 · 已用时长`），跑完自动刷新清单；想停就点「取消」——**是类间真停**，此后不再发任何模型调用，返回已完成的局部结果，而不是前端断开假装停了。类清单里每一类还会带一句「为何还没提炼出技能」（样本不足 / 模型超时 / 解析失败 / 证据未变 / 已取消），不必靠猜。分类结果另带**口径版本**（`task_type_version`），改了判据就是新版本，旧数据不会被冒充成同一把尺子量出来的。
 
 ### 关键接缝
 
@@ -413,10 +416,17 @@ memory-observatory/
 │   └── NOTICE                     #   来源 / 许可 / 名称使用 / 运行时依赖说明
 ├── scripts/                       # 运维脚本（check-laya / setup-laya-backend / mo-static-sync 等）
 ├── mo_sdk/                        # Python 采集 SDK（core/collector/exporter/interceptors）
+├── mo_ingest/                     # 统一接入层（纯 stdlib，零依赖）
+│   ├── contract.py                #   标准化契约（io_kind / operation / trace_id / MemoryEvent）
+│   ├── otlp.py                    #   OTLP 上报（hook 与 log 共用）
+│   ├── registry.py                #   平台注册表（qoder / trae / workbuddy）
+│   ├── hook/                      #   hook 方案：stdin JSON → 事件（实时旁路）
+│   ├── log/                       #   log 方案：日志目录 → turn → 批量上报
+│   └── cli.py                     #   python -m mo_ingest --platform … --mode …
 ├── examples/
 │   ├── otel_demo.py               # OTLP 上报演示
-│   ├── trae_report_event.py       # 零依赖事件上报 CLI
-│   └── trae_importer.py           # 历史会话日志批量导入
+│   ├── QODER-HOOK-SETUP.md        # Qoder Hook 一键接入文档
+│   └── TRAE-HOOK-SETUP.md         # Trae Hook 一键接入文档
 ├── test-logs/                     # .log 导入测试样本
 ├── hermes_instrumentation.py      # Hermes 框架一键插桩示例
 ├── mo-server/                     # Java 服务端

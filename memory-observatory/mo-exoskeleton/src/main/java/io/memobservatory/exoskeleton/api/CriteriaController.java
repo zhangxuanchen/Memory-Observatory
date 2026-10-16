@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 /**
  * 判据重算入口（三期 P0）。
  *
- * 只做一件事：算 corrected（§2.4 隐式纠正）与 is_holdout（§2.5 对照组）并回写 memory_turns，
+ * 只做一件事：算 corrected（§2.4 隐式纠正）与 is_holdout（§2.5 对照组）并回写自有表 memory_turn_criteria（以 turn_id 关联），
  * 顺手返回本次的分路径统计。手动触发、幂等（holdout 是确定性哈希，纠正率是确定性判定）。
  *
  * 与其他入口一样刻意不做调度，也不注入规则——「规则能不能上线」的唯一入口是晋升闸门（§4.11）。

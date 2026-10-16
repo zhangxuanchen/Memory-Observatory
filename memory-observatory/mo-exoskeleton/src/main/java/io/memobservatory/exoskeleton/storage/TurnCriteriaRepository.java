@@ -16,14 +16,13 @@ import java.util.Set;
  * 判据侧的 turn 取数与回写（三期 P0）。
  *
  * 与 {@link RuleRepository} 的分工：那边管「规则」，这边管「判据」。
- * memory_turns 是分析型访问的唯一入口（《分类记忆体》§4.2 零期），本类不再回 memory_events 现算 jsonb。
+ * 取数入口是 {@code memory_turns}（分析型只读，见《分类记忆体》§4.2 零期），判据回写落本模块自建的
+ * {@code memory_turn_criteria}（以 turn_id 关联）——本类不再写 {@code memory_turns} 的任何列。
  *
- * 回写两列：
- * <ul>
- *   <li>{@code corrected}（§2.4 隐式纠正）——mo-server 建表时留出、TurnMaterializer 明确不填，等判据侧接管。</li>
- *   <li>{@code is_holdout}（§2.5 对照组）——本模块 schema.sql 用 ALTER 增列，TurnMaterializer 的 upsert 不碰它，
- *       故物化重跑不会覆盖判定结果。</li>
- * </ul>
+ * <p><b>判据列已迁出 memory_turns</b>（架构重构 M3 / 步骤 15，治 R2：memory_turns 双写）：
+ * 回写两列 {@code corrected}（§2.4 隐式纠正）与 {@code is_holdout}（§2.5 对照组）现写入
+ * {@code memory_turn_criteria}，{@code turn_id / session_id} 由 {@code memory_turns} 带出——
+ * 读 memory_turns 是允许的（owner 建表），但本模块只读写自己的判据表，使 memory_turns 彻底单写。
  *
  * 一次 loadTurns 同时服务三件事：重算、对照分组、headline 纠正率——避免同一批数据被读三遍。
  */
@@ -68,14 +67,17 @@ public class TurnCriteriaRepository {
      * 非空时只取该任务类型的 turn（task_type 是 session 粒度，故同一 session 的 turn 整批同值）。
      */
     private static final String SQL_TURNS = """
-            SELECT turn_id, agent_id, session_id, user_text, source, outcome, action_seq,
-                   started_at, token_total, latency_ms,
-                   %s                     AS io_kinds,
-                   cardinality(action_seq) AS steps,
-                   is_holdout, corrected, task_type
-            FROM memory_turns
+            SELECT t.turn_id, t.agent_id, t.session_id, t.user_text, t.source, t.outcome, t.action_seq,
+                   t.started_at, t.token_total, t.latency_ms,
+                   %s                          AS io_kinds,
+                   cardinality(t.action_seq)   AS steps,
+                   COALESCE(c.is_holdout, false) AS is_holdout,
+                   COALESCE(c.corrected, false)  AS corrected,
+                   c.task_type
+            FROM memory_turns t
+            LEFT JOIN memory_turn_criteria c ON c.turn_id = t.turn_id
             %s
-            ORDER BY session_id, started_at NULLS LAST, turn_id
+            ORDER BY t.session_id, t.started_at NULLS LAST, t.turn_id
             """;
 
     public List<TurnRow> loadTurns() {
@@ -87,7 +89,7 @@ public class TurnCriteriaRepository {
         if (filter.isEmpty()) {
             return jdbc.query(SQL_TURNS.formatted(ShapeBucketer.SQL_IO_KINDS, ""), MAPPER);
         }
-        return jdbc.query(SQL_TURNS.formatted(ShapeBucketer.SQL_IO_KINDS, "WHERE task_type = ?"),
+        return jdbc.query(SQL_TURNS.formatted(ShapeBucketer.SQL_IO_KINDS, "WHERE c.task_type = ?"),
                 MAPPER, filter);
     }
 
@@ -138,8 +140,18 @@ public class TurnCriteriaRepository {
     // 回写
     // ------------------------------------------------------------------
 
+    /**
+     * 判据回写：upsert 自有表 {@code memory_turn_criteria} 的 {@code corrected} / {@code is_holdout}。
+     * {@code turn_id / session_id} 从 {@code memory_turns} 带出（读允许，写禁止）；ON CONFLICT 保证
+     * 只更新这两列与 {@code updated_at}，不触碰同表的 task_type 等分类列（写路径由 {@code TaskTypeRepository} 负责）。
+     */
     private static final String SQL_UPDATE = """
-            UPDATE memory_turns SET corrected = ?, is_holdout = ? WHERE turn_id = ?
+            INSERT INTO memory_turn_criteria (turn_id, session_id, corrected, is_holdout, updated_at)
+            SELECT t.turn_id, t.session_id, ?, ?, now() FROM memory_turns t WHERE t.turn_id = ?
+            ON CONFLICT (turn_id) DO UPDATE SET
+                corrected  = EXCLUDED.corrected,
+                is_holdout = EXCLUDED.is_holdout,
+                updated_at = now()
             """;
 
     /** 一条待回写的判定。 */

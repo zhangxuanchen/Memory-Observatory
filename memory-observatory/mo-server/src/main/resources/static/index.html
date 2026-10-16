@@ -869,10 +869,15 @@ td.sem-td{white-space:nowrap;width:1%}
 .tb-bar:hover .tb-fill{filter:brightness(1.35)}
 .tb-gridline{position:absolute;left:0;right:0;border-top:1px dashed rgba(0,0,0,0.16)}
 .tb-xlab{display:flex;align-items:stretch;gap:8px;margin-top:4px}
-.tb-xlab span{width:21px;flex:none;font-size:7px;font-family:var(--font-mono);color:var(--text-secondary);text-align:center;line-height:1.35;overflow:hidden;word-break:break-all}
+.tb-xlab span{width:21px;flex:none;font-size:7px;font-family:var(--font-mono);color:var(--text-secondary);text-align:center;line-height:1.35;white-space:nowrap;overflow:visible}
 .tb-xlab span:hover{color:var(--color-cyan);cursor:default}
 .tb-bar{cursor:pointer}
 .tb-bar.sel .tb-fill{outline:2px solid var(--color-cyan);outline-offset:1px;filter:brightness(1.5);box-shadow:0 0 12px rgba(0,0,0,0.7)}
+/* 流程分析三栏在窄屏（≤1200px）堆叠为单列：中栏转移图吃满整行宽，不再被 280+320 两侧栏饿到 ~90px 致 G6 塌陷 */
+@media(max-width:1200px){
+  .flow-grid{grid-template-columns:minmax(0,1fr)!important}
+  .flow-grid>.section-card{max-height:none}
+}
 .tr-item{border:1px solid var(--border-glass);border-radius:8px;padding:7px 10px;margin-bottom:8px;cursor:pointer;background:transparent;transition:border-color 0.12s,background 0.12s}
 .tr-item:hover{border-color:#000;background:rgba(0,0,0,0.06)}
 .tr-item-top{display:flex;align-items:center;gap:8px;font-size:12px}
@@ -1138,6 +1143,10 @@ td.sem-td{white-space:nowrap;width:1%}
       <span data-i18n="nav-usage">用量监测</span>
     </div>
     <div class="nav-section-label" data-i18n="nav-import">数据导入 · Import</div>
+    <div class="nav-item" data-page="listen" tabindex="0">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="1.6"/><path d="M4.7 4.7a4.7 4.7 0 000 6.6M11.3 4.7a4.7 4.7 0 010 6.6"/><path d="M2.6 2.6a7.6 7.6 0 000 10.8M13.4 2.6a7.6 7.6 0 010 10.8"/></svg>
+      <span data-i18n="nav-listen">一键接入</span>
+    </div>
     <div class="nav-item" data-page="import" tabindex="0">
       <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 11V3M5 6l3-3 3 3"/><path d="M3 10v3h10v-3"/></svg>
       <span data-i18n="nav-import-entry">数据导入</span>
@@ -1609,7 +1618,7 @@ td.sem-td{white-space:nowrap;width:1%}
   </div>
   <div id="flowEmpty" class="empty" data-i18n="flow-empty-select">先选择 Agent，查看它的记忆操作流程</div>
   <div id="flowBody" style="display:none">
-    <div style="display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;align-items:start">
+    <div class="flow-grid" style="display:grid;grid-template-columns:280px minmax(0,1fr) 320px;gap:12px;align-items:start">
       <div class="section-card">
         <div class="section-title"><span data-i18n="flow-list-title">流程（按频次）</span></div>
         <div id="flowList" style="display:flex;flex-direction:column;gap:6px;max-height:540px;overflow:auto"></div>
@@ -1713,6 +1722,30 @@ td.sem-td{white-space:nowrap;width:1%}
     <button class="btn ghost" onclick="usageMapClose()" data-i18n="usage-map-cancel">取消</button>
   </div>
 </div>
+
+<!-- ============ PAGE: 监听本机 Agent（一键接入） ============ -->
+<section class="page" id="page-listen" aria-label="监听本机 Agent">
+  <div class="analysis-grid">
+    <!-- 一键接入 · 监听：按平台扫描本机 Agent 的 hook 并自动配好 -->
+    <div class="section-card analysis-full" id="obCard">
+      <div class="section-title"><span data-i18n="ob-title">一键接入 · 监听本机 Agent</span></div>
+      <div class="section-hint" data-i18n="ob-hint"></div>
+      <div id="obPlatRow" style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0"></div>
+      <div id="obStatus"></div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span style="font-size:12px;color:var(--text-dim);font-weight:600" data-i18n="ob-feed-title">实时事件流 · 最近 10 条</span>
+        <span id="obFeedTotal" style="font-size:12px;color:var(--text-dim)"></span>
+        <select id="obFeedScope" onchange="obFeedScopeChanged()" style="margin-left:auto;padding:3px 8px;font-size:12px;border:1px solid var(--border-glass);border-radius:var(--radius-sm)"></select>
+        <select id="obFeedValue" onchange="obFeedTick()" style="padding:3px 8px;font-size:12px;max-width:220px;border:1px solid var(--border-glass);border-radius:var(--radius-sm);display:none"></select>
+      </div>
+      <div id="obFeed" style="margin-top:6px;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#0d1117;color:#c9d1d9;padding:8px 10px;max-height:220px;overflow-y:auto;font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:12px;line-height:1.7"></div>
+      <details class="import-guide" style="margin-top:10px">
+        <summary class="import-guide-title" data-i18n="ob-doc-title">这个平台怎么接的 · 原理与手动步骤</summary>
+        <div id="obDocBody" style="margin-top:6px;line-height:1.7"></div>
+      </details>
+    </div>
+  </div>
+</section>
 
 <!-- ============ PAGE: 数据导入 ============ -->
 <section class="page" id="page-import" aria-label="数据导入">
@@ -1894,7 +1927,8 @@ td.sem-td{white-space:nowrap;width:1%}
   <div class="section-card analysis-full">
     <div class="section-title" style="display:flex;align-items:center;gap:10px">
       <span data-i18n="exo-tool-title">记忆提炼 · 技能发现</span>
-      <button class="btn" id="exoDiscoverBtn" style="margin-left:auto;height:30px;padding:0 14px;font-size:12px" data-i18n="exo-btn-discover">重新提炼</button>
+      <button class="btn" id="exoFactBtn" style="margin-left:auto;height:30px;padding:0 14px;font-size:12px" data-i18n="exo-btn-fact">提炼事实</button>
+      <button class="btn" id="exoDiscoverBtn" style="height:30px;padding:0 14px;font-size:12px" data-i18n="exo-btn-discover">重新提炼</button>
     </div>
     <div class="import-guide" style="margin-bottom:12px">
       <div class="import-use-title" data-i18n="exo-tool-desc"></div>
@@ -1905,19 +1939,51 @@ td.sem-td{white-space:nowrap;width:1%}
       <select id="exoAgentSel" onchange="exoOnAgentChange()" style="height:30px;min-width:260px;max-width:420px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 8px"></select>
       <span style="font-size:12px;color:var(--text-dim)" data-i18n="exo-filter-session">Session</span>
       <select id="exoSessionSel" onchange="exoOnSessionChange()" style="height:30px;min-width:200px;max-width:360px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 8px"></select>
+      <span style="font-size:12px;color:var(--text-dim)" data-i18n="exo-filter-search">搜索</span>
+      <input id="exoSearch" oninput="exoOnSearchChange()" data-i18n-ph="exo-search-ph" placeholder="按名称 / 说明筛选技能…" spellcheck="false" autocomplete="off" style="height:30px;min-width:200px;max-width:320px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 10px">
+      <select id="exoSortSel" onchange="exoOnSortChange()" style="height:30px;font-size:12.5px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 8px">
+        <option value="default" data-i18n="exo-sort-default">默认（新提议在前）</option>
+        <option value="turns" data-i18n="exo-sort-turns">证据多者在前</option>
+        <option value="name" data-i18n="exo-sort-name">按名称</option>
+      </select>
       <span id="exoStatusMsg" style="margin-left:auto;font-size:12px;color:var(--text-secondary)"></span>
     </div>
+    <!-- 提炼进度：跑的时候显示 doneClasses/totalClasses、当前类、已用时长与「取消」按钮；空闲时隐藏 -->
+    <div id="exoProgress" style="display:none;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px"></div>
   </div>
 
-  <div class="section-card analysis-full" id="exoClassesCard">
+  <!-- 分类清单 + 会话分类：并排（各自 flex 等宽、拉伸等高；会话卡收起时另一张独占整行） -->
+  <div style="display:flex;gap:20px;align-items:stretch">
+  <div class="section-card analysis-full" id="exoClassesCard" style="flex:1 1 0;min-width:0;width:auto">
     <div class="section-title" data-i18n="exo-classes-title">分类清单 · 分成了哪些类</div>
     <div id="exoClassesNote" style="font-size:11.5px;color:var(--text-dim);margin-bottom:10px;white-space:pre-wrap"></div>
     <div id="exoClassesBody"></div>
   </div>
 
+  <div class="section-card analysis-full" id="exoSessionListCard" style="display:none;flex:1 1 0;min-width:0;width:auto">
+    <div class="section-title" data-i18n="exo-sessionlist-title">会话分类 · 可逐条纠正</div>
+    <div id="exoSessionListNote" style="font-size:11.5px;color:var(--text-dim);margin-bottom:10px;white-space:pre-wrap" data-i18n="exo-sessionlist-note"></div>
+    <div id="exoSessionListBody"></div>
+  </div>
+  </div>
+
   <div class="section-card analysis-full" id="exoProposalsCard" style="display:none">
     <div class="section-title" data-i18n="exo-proposals-title">发现的可复用技能（要不要用）</div>
     <div id="exoProposalsBody" style="display:flex;flex-direction:column;gap:14px"></div>
+  </div>
+
+  <div class="section-card analysis-full" id="exoUsageCard">
+    <div class="section-title" data-i18n="exo-usage-title">LLM 用量 · 本进程累计（重启归零）</div>
+    <div id="exoUsageBody"></div>
+  </div>
+
+  <div class="section-card analysis-full" id="exoHistoryCard">
+    <div class="section-title" style="display:flex;align-items:center;gap:10px">
+      <span data-i18n="exo-history-title">操作与提炼历史 · 谁在何时做了什么</span>
+      <button class="btn" id="exoHistoryBtn" style="margin-left:auto;height:30px;padding:0 14px;font-size:12px" data-i18n="exo-history-btn">刷新历史</button>
+    </div>
+    <div id="exoHistoryNote" style="font-size:11.5px;color:var(--text-dim);margin-bottom:10px;white-space:pre-wrap" data-i18n="exo-history-note"></div>
+    <div id="exoHistoryBody"></div>
   </div>
 </section>
 
@@ -3116,7 +3182,8 @@ const I18N={
     'ff-session':'Session',
     'ff-window':'窗口',
     'da-title':'流程分析 · 记忆操作流转与问题节点定位',
-    'nav-import':'数据导入 · Import',
+    'nav-listen':'一键接入',
+'nav-import':'数据导入 · Import',
     'nav-import-entry':'数据导入',
     'da-hint':'流程分析把 Agent 落库的记忆事件还原为「turn 级流程」：一个 turn 是一轮交互内的记忆操作序列，每个操作归一化为节点（read/write/update/expire × prompt/session/skill/provider，如 read@session=会话记忆检索），相同序列归并为流程变体并统计频次，据此画出转移图并自动定位出问题的节点。三栏这样用：① 左栏「流程（按频次）」列出每种变体的出现次数、占比与 token 消耗，含循环/坏味道标记，点击条目会在中栏高亮对应路径；② 中栏「转移图」节点编号即流向顺序（1 为起点，▶ 起点、⏹ 终点），边宽 = 转移频次，节点色 = 操作类型（青=读取/绿=写入/紫=更新/红=遗忘），描边 = 健康度（红=问题/橙=预警/深色=正常），划过节点点亮其邻接路径、点击可钉住，支持拖拽缩放；③ 右栏「问题节点」卡片列出命中信号的节点（S1 烧钱/S2 慢/S3 循环参与/S7 失败率），点击卡片会在图上定位该节点并弹出详情滑块，展示是哪几个 turn 出的问题、证据与操作上下文。使用时先在顶部选择 Agent，可再按 Session（一个 Session 含多个 turn）与时间窗口过滤。为什么监控它：转移图把记忆事件按「操作 × 层级」聚合成状态机，看 Agent 在记忆层「怎么走」——红色自环边就是循环。风险信号 S3：同一状态反复转移（READ→READ→READ）= Agent 在原地打转，token 与延迟空烧、任务不会前进。解决什么问题：Agent 卡死/死循环靠肉眼看日志很难发现，转移图 + 自环循环计数让「打转」显形，据此可触发循环熔断或提示用户接管。',
     'flow-select-agent':'选择 Agent',
@@ -3155,7 +3222,8 @@ const I18N={
     'flow-issue-summary':'内容摘要',
     'flow-issue-input':'用户输入',
     'flow-issue-ctx':'Turn 操作上下文',
-    'page-import':'数据导入',
+    'page-listen':'监听本机 Agent',
+'page-import':'数据导入',
     'nav-agent':'工作区',
     'nav-agent-entry':'工作区',
     'nav-mcp-manage':'MCP 管理',
@@ -3183,6 +3251,13 @@ const I18N={
     'exo-discover-need-agent':'请先选择一个 Agent，再重新提炼。提炼以「Agent × 任务类型」为单位。',
     'exo-classes-title':'分类清单 · 分成了哪些类',
     'exo-classes-note':'该 Agent 下每个类是多少个会话、多少条对话；对话数达到 {0} 条才会去提炼技能（未达标显示为「未达标」）。「未分类」是还没跑过分类的会话。',
+    'exo-sessionlist-title':'会话分类 · 可逐条纠正',
+    'exo-sessionlist-note':'上面按「类」聚合；这里按「会话」逐条列出，模型判错了可以直接改。只改标签，不会自动重提炼——要不要据此重跑由你点上面的「重新提炼」。',
+    'exo-sessionlist-save':'保存',
+    'exo-sessionlist-saving':'保存中…',
+    'exo-sessionlist-saved':'已纠正该会话的任务类型。',
+    'exo-sessionlist-fail':'纠正失败',
+    'exo-col-session':'会话',
     'exo-proposals-title':'发现的可复用技能（要不要用）',
     'exo-col-type':'任务类型',
     'exo-col-sessions':'会话数',
@@ -3193,6 +3268,7 @@ const I18N={
     'exo-empty-classes':'还没有分类数据。记忆提炼会在下一次分类跑完后自动填上这里。',
     'exo-skill-eligible':'可提炼（达标）',
     'exo-skill-below':'未达标',
+    'exo-loads':'装载 {0} 次 · 最近 {1}',
     'exo-status-pending':'待采纳',
     'exo-status-adopted':'已启用',
     'exo-status-dismissed':'已不用',
@@ -3205,12 +3281,137 @@ const I18N={
     'exo-discover-ok':'提炼完成',
     'exo-discover-stat':'送模型 {0} 类 · 新提议 {1} · 无新增 {2} · 失败 {3} · 未变跳过 {4}',
     'exo-discover-fail':'提炼失败',
+    'exo-discover-cancelled':'提炼已取消',
+    'exo-discover-stopped-budget-time':'已达单轮时长预算，本轮提前停下',
+    'exo-discover-stopped-budget-tokens':'已达单轮 token 预算，本轮提前停下',
+    'exo-discover-stopped-breaker':'LLM 连续失败，已熔断提前停下',
+    'exo-discover-stopped-other':'本轮提前停下',
+    'exo-discover-running':'该 Agent 正在提炼中，继续显示进度。',
+    'exo-btn-cancel':'取消',
+    'exo-btn-cancelling':'取消中…',
+    'exo-cancel-fail':'取消失败',
+    'exo-poll-fail':'进度查询失败',
+    'exo-progress':'进度 {0}/{1}',
+    'exo-progress-class':'当前类 {0}',
+    'exo-progress-elapsed':'已用 {0}',
+    'exo-progress-tokens':'已用 {0} token',
+    'exo-btn-running':'提炼中…',
+    'exo-usage-title':'LLM 用量 · 本进程累计（重启归零）',
+    'exo-usage-empty':'暂无用量读数：本进程尚未调用过 LLM（分类 / 提炼）。',
+    'exo-usage-col-agent':'Agent','exo-usage-col-cap':'能力','exo-usage-col-task':'任务类型','exo-usage-col-calls':'调用','exo-usage-col-failed':'失败','exo-usage-col-token':'Token(总)',
+    'exo-usage-cap-task':'任务分类','exo-usage-cap-skill':'技能提炼','exo-usage-cap-fact':'事实提炼',
+    'ob-title':'一键接入 · 监听本机 Agent','ob-hint':'选你的 Agent → 点「扫描」看本机有没有接好 → 没接好点「一键配置」，自动把实时监听 Hook 写进它的配置（幂等、可回滚）。所有读写都发生在你这台机器上，绝不外发。','ob-soon':'即将支持',
+    'ob-plat-qoder':'Qoder CN / Qoder IDE','ob-plat-trae':'Trae','ob-plat-claude':'Claude / Cursor / Codex / Windsurf（MCP）','ob-plat-generic':'通用 HTTP 上报',
+'ob-feed-title':'实时事件流 · 最近 10 条','ob-feed-empty':'等待新事件…',
+'ob-feed-scope-all':'全部（全局）','ob-feed-scope-project':'按项目','ob-feed-scope-workspace':'按工作区','ob-feed-scope-task':'按任务',
+'ob-feed-total':'· 共 {0} 条',
+'ob-feed-scope-escape':'越界','ob-feed-escape-tip':'越界：项目目录不在工作区内。',
+    'ob-doc-title':'这个平台怎么接的 · 原理与手动步骤','ob-installed':'已接入','ob-not-installed':'未接入','ob-flowing':'近 30 分钟已收到 {0} 条','ob-no-flow':'近期无新数据','ob-script':'脚本','ob-key':'密钥','ob-yes':'有','ob-no':'无',
+    'ob-reg':'已注册 {0} 个事件','ob-unreg':'未注册 Hook','ob-absent':'未安装该版本','ob-last':'最近一条','ob-rescan':'重新扫描','ob-install':'一键配置',
+    'ob-install-hint':'点右上「一键配置」即可自动写入 Hook；配好后需重启该 Agent 应用生效。','ob-install-confirm':'将扫描并（幂等地）写入本机 Qoder 的 hook 配置与密钥文件，确认继续？','ob-installing':'正在配置…','ob-install-done':'已写入 {0} 项变更','ob-install-none':'无需变更，已是最新','ob-install-fail':'配置失败','ob-scan-fail':'扫描失败',
+    'ob-doc-qoder':'<b>原理</b>：Qoder 在 UserPromptSubmit / PostToolUse / PostToolUseFailure / Stop 四个节点，把事件 JSON 从 stdin 交给一个 command Hook。我们把这些事件翻译成标准 turn 契约，经 OTLP 上报到本机 mo-server（4318）。<br><b>一键配置做了什么</b>：① 把纯 stdlib 的接入层 mo_ingest 拷到 <code>~/.qoder/hooks/</code>；② 生成包装脚本 <code>mo-report.sh</code>（读 <code>.mo_env</code> 里的 key、设 PYTHONPATH、exec python3 -m mo_ingest）；③ 落 <code>.mo_env</code>（含 API key，权限 600）；④ 幂等合并 hooks 块进 <code>~/.qoder(-cn)/settings.json</code>，保留你其它设置。<br><b>生效</b>：配置写完后需<b>重启 Qoder</b>，之后每轮对话实时入库。<br><b>回滚</b>：删除 settings.json 里的 hooks 块、或把 <code>mo-report.sh</code> 改名即可停用。',
+    'exo-interrupted':'上轮被中断（{0}/{1} 已跑完），可重跑',
+    'exo-elapsed-s':'{0} 秒',
+    'exo-elapsed-ms':'{0} 分 {1} 秒',
     'exo-tools':'工具',
     'exo-skill-purpose':'能干什么',
     'exo-prompt-toggle':'完整流程（prompt）',
     'exo-source':'来源',
     'exo-from-turns':'从 {0} 条对话提炼',
+    'exo-btn-reasoning':'提炼思考历程',
+    'exo-reason-title':'提炼思考历程',
+    'exo-reason-hint':'据此判断提炼得对不对，再决定要不要用。',
+    'exo-reason-model':'模型自述（仅供参考，不作判据）',
+    'exo-reason-det':'确定性证据（可核对）',
+    'exo-reason-patterns':'发现的做法 / 规律',
+    'exo-reason-preferences':'用户偏好 / 习惯',
+    'exo-reason-keypoints':'关键判断点',
+    'exo-reason-evidence':'模型给出的依据',
+    'exo-reason-sessions':'依据的会话',
+    'exo-reason-sessions-n':'{0} 个会话',
+    'exo-reason-samples':'会话代表原话',
+    'exo-reason-log':'日志总结',
+    'exo-reason-log-facts':'硬统计（可核对）',
+    'exo-reason-log-model':'模型总结（这批日志在做什么）',
+    'exo-btn-effect':'效果验证',
+    'exo-effect-loading':'正在对照采纳前后…',
+    'exo-effect-fail':'效果验证取不到',
+    'exo-effect-pass':'通过（未变差）',
+    'exo-effect-fail-verdict':'不通过（有变差）',
+    'exo-effect-unknown':'不可测（样本不足）',
+    'exo-effect-before':'采纳前',
+    'exo-effect-after':'采纳后',
+    'exo-effect-bucket':'{0}：{1} 会话 · {2} 轮 · 纠正 {3}% · 失败 {4}% · 回合 {5}',
+    'exo-effect-hint':'采纳前 vs 采纳后对照；撤回采纳由人拍板，本结论不改任何能力。',
+    'exo-skill-tokens':'提炼耗 {0} token',
+    'exo-skill-tokens-tip':'本技能这一次提炼消耗的 LLM token（进程内读数，服务重启归零）',
+    'exo-page-info':'第 {0} / {1} 页 · 共 {2} 个',
+    'exo-page-prev':'上一页',
+    'exo-page-next':'下一页',
     'exo-disabled':'记忆提炼的 LLM 通道未配置，暂不能提炼（如实报告，不阻塞）。',
+    'exo-btn-fact':'提炼事实',
+    'exo-prompt-toggle-fact':'事实内容',
+    'exo-select-all':'全选待采纳',
+    'exo-btn-adopt-batch':'批量启用',
+    'exo-btn-adopt-batch-n':'批量启用（{0}）',
+    'exo-batch-none':'请先勾选要处理的技能。',
+    'exo-batch-working':'正在批量启用 {0} 条…',
+    'exo-batch-ok':'批量启用完成',
+    'exo-batch-fail':'批量启用失败',
+    'exo-fact-need-agent':'请先选择一个 Agent；事实按 Agent 提炼（每 Agent 一份）。',
+    'exo-fact-working':'正在提炼「项目结构约定」…',
+    'exo-fact-ok':'事实提炼完成',
+    'exo-fact-fail':'事实提炼失败',
+    // 搜索 / 排序：纯前端筛「怎么看」，不改数据
+    'exo-filter-search':'搜索',
+    'exo-search-ph':'按名称 / 说明筛选技能…',
+    'exo-sort-default':'默认（新提议在前）',
+    'exo-sort-turns':'证据多者在前',
+    'exo-sort-name':'按名称',
+    'exo-empty-filtered':'当前条件下没有匹配的技能——换个关键词或清空搜索试试。',
+    // 批量不用：与批量启用共用勾选
+    'exo-btn-dismiss-batch':'批量不用',
+    'exo-btn-dismiss-batch-n':'批量不用（{0}）',
+    'exo-batch-dismiss-working':'正在批量标记不用 {0} 条…',
+    'exo-batch-dismiss-ok':'批量不用完成',
+    'exo-batch-dismiss-fail':'批量不用失败',
+    // 版本链：有新版 / 更新 / 版本历史
+    'exo-ver':'v{0}',
+    'exo-ver-pending':'有新版 v{0}',
+    'exo-ver-pending-hint':'内容已备好（v{0}），但库里装的还是旧版——点「更新」才落进工作台。',
+    'exo-btn-update':'更新到 v{0}',
+    'exo-update-ok':'已更新到新版：技能库已重新落盘。',
+    'exo-update-fail':'更新失败',
+    'exo-btn-ver-history':'版本历史（每一版长什么样）',
+    'exo-ver-history-empty':'还没有版本记录。',
+    'exo-ver-history-fail':'版本历史取不到',
+    'exo-ver-status-pending':'待更新',
+    'exo-ver-status-adopted':'当前已装',
+    'exo-ver-status-superseded':'已被顶下',
+    // 软重复：内容相同但 id 不同（只标，不自动合并）
+    'exo-dup-badge':'疑似重复',
+    'exo-dup-hint':'疑似重复：与「{0}」（{1}）的内容一致，但技能 id 不同。合不合由你判断——机器只标出来、不替你合并。',
+    // 操作与提炼历史（只增不改的流水，人机共用）
+    'exo-history-title':'操作与提炼历史 · 谁在何时做了什么',
+    'exo-history-note':'一张只增不改的流水，人与机器的动作同列一处：人的采纳 / 不用，系统的出提议 / 无技能 / 失败 / 跳过 / 出新版 / 去重。先选 Agent 可只看该 Agent 的历史。',
+    'exo-history-btn':'刷新历史',
+    'exo-history-empty':'还没有历史记录：跑一轮提炼或拍一次板后再回来看。',
+    'exo-history-err':'读取历史失败',
+    'exo-history-col-time':'时间',
+    'exo-history-col-kind':'动作',
+    'exo-history-col-actor':'由谁',
+    'exo-history-col-what':'作用于',
+    'exo-history-col-detail':'说明',
+    'exo-history-actor-human':'人',
+    'exo-history-actor-system':'系统',
+    'exo-history-kind-offer':'出提议',
+    'exo-history-kind-quiet':'无技能',
+    'exo-history-kind-failed':'失败',
+    'exo-history-kind-skip':'跳过',
+    'exo-history-kind-adopt':'采纳',
+    'exo-history-kind-dismiss':'不用',
+    'exo-history-kind-revise':'出新版',
+    'exo-history-kind-dedup':'去重',
     'dec-tool-title':'决策卡片下发（§4.10）',
     'dec-tool-desc':'每张卡是一道三选一：选项固定三档、位置固定，默认项是「不动」。点一档即作答，后果由服务端执行——「采纳」不等于生效（缺证据会被晋升闸门拦下）。不回答是安全的：不答的卡下个周期会刷新重提。',
     'dec-btn-generate':'生成卡片',
@@ -3352,8 +3553,8 @@ const I18N={
     'import-use-5t':'喂技能',
     'import-use-6':'：让 Agent 调一次 report_memory_event，返回 eventId 即接入成功，Dashboard 刷新可见。',
     'import-use-6t':'校验',
-    'import-trae-warn':'TraeCode 不支持注册自定义 stdio MCP：本 MCP 包不适用。改用脚本直报：',
-    'import-trae-tip':'刷新 Dashboard 事件详情页（Agent=trae-code）即可看到；历史聊天批量导入可用 python3 examples/trae_importer.py --since 20260801。',
+    'import-trae-warn':'TraeCode 不支持注册自定义 stdio MCP：本 MCP 包不适用。改用统一接入层或 curl 直报：',
+    'import-trae-tip':'刷新 Dashboard 事件详情页（Agent=trae-code）即可看到；历史聊天批量导入可用 python3 -m mo_ingest --platform trae --mode log --since 20260801 --send。',
     'import-no-file':'请先选择文件',
     'import-ext-invalid':'仅支持 .xlsx 或 .json 文件',
     'import-json-parse':'JSON 解析失败，请检查文件内容是否为合法 JSON',
@@ -3475,6 +3676,7 @@ const I18N={
     'sec-sk-slow':'指标③ · Skill 执行耗时离群（超阈值）','sec-sk-calls':'指标④ · Skill 调用次数（Top 10）',
     'sec-sk-tokens':'指标⑤ · Skill 消耗 Token（Top 10）','sec-sk-refs':'指标⑥ · Skill 被 Agent 引用',
     'col-user':'用户问题','col-steps':'操作步骤','col-outcome':'结果','unit-step':'步','unit-token':'token','no-actions':'无操作步骤',
+    'import-no-question':'导入数据无提问原文',
     'col-sess-id':'会话 ID','col-event-count':'事件数','col-last-ts':'最后活跃时间','col-action':'操作',
     'zone-total':'总窗口','zone-total-2':'总预算','zone-mem':'记忆区',
     'zone-empty':'该 Agent 暂无上下文快照数据，5 区预算条无法显示',
@@ -3686,7 +3888,8 @@ const I18N={
     'ff-session':'Session',
     'ff-window':'Window',
     'da-title':'Flow Analysis · Memory Operation Flows & Problem Nodes',
-    'nav-import':'Import',
+    'nav-listen':'One-click Onboarding',
+'nav-import':'Import',
     'nav-import-entry':'Import',
     'da-hint':'Flow analysis reconstructs the agent\'s recorded memory events into "turn-level flows": a turn is the sequence of memory operations within one interaction round, each operation is normalized into a node (read/write/update/expire × prompt/session/skill/provider, e.g. read@session = session memory retrieval), identical sequences are merged into flow variants with frequency stats, from which the transition graph is drawn and problem nodes are located automatically. How to use the three columns: ① Left "Flows (by frequency)" lists each variant\'s count, share and token usage, with loop/smell badges; click an entry to highlight that path in the graph. ② Middle "Transition graph": node numbers show flow order (1 = start, ▶ start mark, ⏹ end mark), edge width = transition frequency, node color = operation (cyan read / green write / purple update / red expire), stroke = health (red problem / orange warning / dark normal); hover a node to light up its adjacent paths, click to pin; drag to pan, scroll to zoom. ③ Right "Problem nodes" cards list nodes hitting signals (S1 burn / S2 slow / S3 loop join / S7 fail ratio); clicking a card locates the node on the graph and opens a detail slider showing which turns are affected, the evidence and the operation context. Start by picking an agent on top, optionally filter by session (one session contains multiple turns) and time window. Why monitor: the transition graph aggregates memory events into a state machine of operation × layer, showing how the agent "walks" through memory — a red self-loop edge is a loop. Risk signal S3: the same state transitioning repeatedly (READ→READ→READ) means the agent is spinning in place, burning tokens and latency with no task progress. What it solves: agent deadlocks / infinite loops are hard to spot in raw logs; the graph plus self-loop counts makes spinning visible, so you can trigger loop breaking or hand over to the user.',
     'flow-select-agent':'Select agent',
@@ -3725,7 +3928,8 @@ const I18N={
     'flow-issue-summary':'Content summary',
     'flow-issue-input':'User input',
     'flow-issue-ctx':'Turn operation context',
-    'page-import':'Import',
+    'page-listen':'Listen to local Agents',
+'page-import':'Import',
     'nav-agent':'Workspace',
     'nav-agent-entry':'Workspace',
     'nav-mcp-manage':'MCP Management',
@@ -3753,6 +3957,13 @@ const I18N={
     'exo-discover-need-agent':'Pick an Agent first, then re-discover. Discovery works per "Agent × task type".',
     'exo-classes-title':'Class list · what categories exist',
     'exo-classes-note':'For this Agent, how many sessions and turns each class has; a class is mined for skills only when it reaches {0} turns (below that shows "below threshold"). "Unclassified" means classification has not run yet.',
+    'exo-sessionlist-title':'Session classification · correct per session',
+    'exo-sessionlist-note':'The table above aggregates by class; this one lists per session so you can fix a wrong label directly. It only changes the label — it does not re-distill; click "Re-distill" above to re-run if you want.',
+    'exo-sessionlist-save':'Save',
+    'exo-sessionlist-saving':'Saving…',
+    'exo-sessionlist-saved':'Task type corrected for this session.',
+    'exo-sessionlist-fail':'Correction failed',
+    'exo-col-session':'Session',
     'exo-proposals-title':'Discovered reusable skills (use or not)',
     'exo-col-type':'Task type',
     'exo-col-sessions':'Sessions',
@@ -3763,6 +3974,7 @@ const I18N={
     'exo-empty-classes':'No classification data yet. Memory Distillation will fill this in after the next classification run.',
     'exo-skill-eligible':'Eligible',
     'exo-skill-below':'Below threshold',
+    'exo-loads':'Loaded {0}× · last {1}',
     'exo-status-pending':'Pending',
     'exo-status-adopted':'Adopted',
     'exo-status-dismissed':'Dismissed',
@@ -3775,12 +3987,137 @@ const I18N={
     'exo-discover-ok':'Discovery finished',
     'exo-discover-stat':'{0} sent to model · {1} new · {2} none · {3} failed · {4} unchanged, skipped',
     'exo-discover-fail':'Discovery failed',
+    'exo-discover-cancelled':'Discovery cancelled',
+    'exo-discover-stopped-budget-time':'Time budget reached — this run halted early',
+    'exo-discover-stopped-budget-tokens':'Token budget reached — this run halted early',
+    'exo-discover-stopped-breaker':'LLM kept failing — breaker halted this run',
+    'exo-discover-stopped-other':'This run halted early',
+    'exo-discover-running':'This Agent is being distilled; showing progress.',
+    'exo-btn-cancel':'Cancel',
+    'exo-btn-cancelling':'Cancelling…',
+    'exo-cancel-fail':'Cancel failed',
+    'exo-poll-fail':'Failed to fetch progress',
+    'exo-progress':'Progress {0}/{1}',
+    'exo-progress-class':'Current class {0}',
+    'exo-progress-elapsed':'Elapsed {0}',
+    'exo-progress-tokens':'{0} tokens used',
+    'exo-btn-running':'Distilling…',
+    'exo-usage-title':'LLM Usage · in-process (resets on restart)',
+    'exo-usage-empty':'No usage yet: no LLM calls (classify / distill) made in this process.',
+    'exo-usage-col-agent':'Agent','exo-usage-col-cap':'Capability','exo-usage-col-task':'Task type','exo-usage-col-calls':'Calls','exo-usage-col-failed':'Failed','exo-usage-col-token':'Tokens',
+    'exo-usage-cap-task':'Classify','exo-usage-cap-skill':'Skill','exo-usage-cap-fact':'Fact',
+    'ob-title':'One-click onboarding · listen to local Agents','ob-hint':'Pick your Agent, click Scan to see whether it is wired, then One-click setup to write the real-time hook into its config (idempotent, reversible). All reads/writes stay on this machine and never leave it.','ob-soon':'Coming soon',
+    'ob-plat-qoder':'Qoder CN / Qoder IDE','ob-plat-trae':'Trae','ob-plat-claude':'Claude / Cursor / Codex / Windsurf (MCP)','ob-plat-generic':'Generic HTTP reporting',
+'ob-feed-title':'Live stream · last 10 events','ob-feed-empty':'Waiting for new events…',
+'ob-feed-scope-all':'All (global)','ob-feed-scope-project':'By project','ob-feed-scope-workspace':'By workspace','ob-feed-scope-task':'By task',
+'ob-feed-total':'· {0} total',
+'ob-feed-scope-escape':'Out of workspace','ob-feed-escape-tip':'Outside workspace: project dir not under the workspace. ',
+    'ob-doc-title':'How this platform connects · principle & manual steps','ob-installed':'Connected','ob-not-installed':'Not connected','ob-flowing':'{0} events in last 30 min','ob-no-flow':'No recent data','ob-script':'script','ob-key':'key','ob-yes':'yes','ob-no':'no',
+    'ob-reg':'{0} events registered','ob-unreg':'hook not registered','ob-absent':'variant not installed','ob-last':'last event','ob-rescan':'Re-scan','ob-install':'One-click setup',
+    'ob-install-hint':'Click One-click setup to write the hook automatically; restart the Agent app to take effect.','ob-install-confirm':'This will scan and idempotently write Qoder hook config and a key file on this machine. Continue?','ob-installing':'Configuring…','ob-install-done':'{0} change(s) applied','ob-install-none':'No change, already up to date','ob-install-fail':'Setup failed','ob-scan-fail':'Scan failed',
+    'ob-doc-qoder':'<b>Principle</b>: Qoder feeds event JSON via stdin to a command hook at UserPromptSubmit / PostToolUse / PostToolUseFailure / Stop. We translate them into the standard turn contract and report over OTLP to the local mo-server (4318).<br><b>What one-click setup does</b>: (1) copy the stdlib-only mo_ingest into <code>~/.qoder/hooks/</code>; (2) generate the <code>mo-report.sh</code> wrapper (loads key from <code>.mo_env</code>, sets PYTHONPATH, exec python3 -m mo_ingest); (3) write <code>.mo_env</code> (API key, mode 600); (4) idempotently merge the hooks block into <code>~/.qoder(-cn)/settings.json</code>, preserving other settings.<br><b>Take effect</b>: restart Qoder after writing; subsequent turns stream in live.<br><b>Rollback</b>: remove the hooks block from settings.json, or rename <code>mo-report.sh</code> to disable.',
+    'exo-interrupted':'Last run interrupted ({0}/{1} done) — you can rerun',
+    'exo-elapsed-s':'{0}s',
+    'exo-elapsed-ms':'{0}m {1}s',
     'exo-tools':'Tools',
     'exo-skill-purpose':'What it does',
     'exo-prompt-toggle':'Full procedure (prompt)',
     'exo-source':'Source',
     'exo-from-turns':'Distilled from {0} turns',
+    'exo-btn-reasoning':'Extraction trail',
+    'exo-reason-title':'How this skill was distilled',
+    'exo-reason-hint':'Use this to judge whether the extraction is right, then decide whether to adopt.',
+    'exo-reason-model':'Model self-report (reference only, not a criterion)',
+    'exo-reason-det':'Deterministic evidence (verifiable)',
+    'exo-reason-patterns':'Recurring patterns',
+    'exo-reason-preferences':'User preferences',
+    'exo-reason-keypoints':'Key judgement points',
+    'exo-reason-evidence':'Model-stated evidence',
+    'exo-reason-sessions':'Sessions used',
+    'exo-reason-sessions-n':'{0} sessions',
+    'exo-reason-samples':'Representative quotes',
+    'exo-reason-log':'Log summary',
+    'exo-reason-log-facts':'Hard stats (verifiable)',
+    'exo-reason-log-model':'Model summary (what these logs are about)',
+    'exo-btn-effect':'Effect check',
+    'exo-effect-loading':'Comparing before/after adoption…',
+    'exo-effect-fail':'Effect check unavailable',
+    'exo-effect-pass':'Pass (no regression)',
+    'exo-effect-fail-verdict':'Fail (regression)',
+    'exo-effect-unknown':'Not measurable (insufficient sample)',
+    'exo-effect-before':'Before',
+    'exo-effect-after':'After',
+    'exo-effect-bucket':'{0}: {1} sessions · {2} turns · corrected {3}% · failed {4}% · rounds {5}',
+    'exo-effect-hint':'Before vs after adoption; revoking adoption is a human call — this verdict changes nothing.',
+    'exo-skill-tokens':'distill {0} tokens',
+    'exo-skill-tokens-tip':'LLM tokens spent distilling this skill (in-process reading, reset on service restart)',
+    'exo-page-info':'Page {0} of {1} · {2} total',
+    'exo-page-prev':'Prev',
+    'exo-page-next':'Next',
     'exo-disabled':'The Memory Distillation LLM channel is not configured; discovery is unavailable (reported as-is, non-blocking).',
+    'exo-btn-fact':'Distill facts',
+    'exo-prompt-toggle-fact':'Fact content',
+    'exo-select-all':'Select all pending',
+    'exo-btn-adopt-batch':'Enable selected',
+    'exo-btn-adopt-batch-n':'Enable selected ({0})',
+    'exo-batch-none':'Pick at least one skill to process.',
+    'exo-batch-working':'Enabling {0} item(s)…',
+    'exo-batch-ok':'Batch enable complete',
+    'exo-batch-fail':'Batch enable failed',
+    'exo-fact-need-agent':'Select an Agent first; facts are distilled per Agent (one per Agent).',
+    'exo-fact-working':'Distilling project-structure facts…',
+    'exo-fact-ok':'Fact distillation complete',
+    'exo-fact-fail':'Fact distillation failed',
+    // Search / sort: purely front-end "how to view", does not change data
+    'exo-filter-search':'Search',
+    'exo-search-ph':'Filter by name / description…',
+    'exo-sort-default':'Default (newest first)',
+    'exo-sort-turns':'Most evidence first',
+    'exo-sort-name':'By name',
+    'exo-empty-filtered':'No skills match the current filters — try another keyword or clear the search.',
+    // Batch dismiss: shares the selection with batch enable
+    'exo-btn-dismiss-batch':'Dismiss selected',
+    'exo-btn-dismiss-batch-n':'Dismiss selected ({0})',
+    'exo-batch-dismiss-working':'Dismissing {0} item(s)…',
+    'exo-batch-dismiss-ok':'Batch dismiss complete',
+    'exo-batch-dismiss-fail':'Batch dismiss failed',
+    // Version chain: new version / update / version history
+    'exo-ver':'v{0}',
+    'exo-ver-pending':'New version v{0}',
+    'exo-ver-pending-hint':'New content is ready (v{0}), but the library still holds the old one — click "Update" to install it.',
+    'exo-btn-update':'Update to v{0}',
+    'exo-update-ok':'Updated: the skill library was re-saved with the new version.',
+    'exo-update-fail':'Update failed',
+    'exo-btn-ver-history':'Version history (what each version looked like)',
+    'exo-ver-history-empty':'No version records yet.',
+    'exo-ver-history-fail':'Version history unavailable',
+    'exo-ver-status-pending':'Pending update',
+    'exo-ver-status-adopted':'Currently installed',
+    'exo-ver-status-superseded':'Superseded',
+    // Soft duplicate: same content, different id (flagged only, never auto-merged)
+    'exo-dup-badge':'Possible duplicate',
+    'exo-dup-hint':'Possible duplicate: identical content to "{0}" ({1}), but a different skill id. Merging is your call — the system only flags it.',
+    // Action & distillation history (append-only stream, human and system alike)
+    'exo-history-title':'Action & distillation history · who did what, when',
+    'exo-history-note':'An append-only stream where human and system actions sit side by side: human adopt / dismiss, and system offer / quiet / failed / skip / revise / dedup. Pick an Agent to see only that Agent\u2019s history.',
+    'exo-history-btn':'Refresh history',
+    'exo-history-empty':'No history yet: run a distillation round or decide on a card, then come back.',
+    'exo-history-err':'Failed to load history',
+    'exo-history-col-time':'Time',
+    'exo-history-col-kind':'Action',
+    'exo-history-col-actor':'Actor',
+    'exo-history-col-what':'Target',
+    'exo-history-col-detail':'Detail',
+    'exo-history-actor-human':'Human',
+    'exo-history-actor-system':'System',
+    'exo-history-kind-offer':'Offer',
+    'exo-history-kind-quiet':'No skill',
+    'exo-history-kind-failed':'Failed',
+    'exo-history-kind-skip':'Skip',
+    'exo-history-kind-adopt':'Adopt',
+    'exo-history-kind-dismiss':'Dismiss',
+    'exo-history-kind-revise':'New version',
+    'exo-history-kind-dedup':'Dedup',
     'dec-tool-title':'Decision cards (§4.10)',
     'dec-tool-desc':'Each card is a three-way choice: exactly three options, fixed positions, default is "do nothing". Clicking an option answers it; the consequence is executed server-side — "accept" is NOT the same as taking effect (the promotion gate blocks it when evidence is missing). Not answering is safe: unanswered cards are refreshed next cycle.',
     'dec-btn-generate':'Generate cards',
@@ -3922,8 +4259,8 @@ const I18N={
     'import-use-5t':'Feed skill',
     'import-use-6':'：ask the Agent to call report_memory_event once; getting an eventId means success, then refresh Dashboard.',
     'import-use-6t':'Verify',
-    'import-trae-warn':'TraeCode does not allow registering custom stdio MCP: this MCP package does not apply. Use the script instead:',
-    'import-trae-tip':'Refresh the Dashboard Events page (Agent=trae-code) to see it; bulk import history with python3 examples/trae_importer.py --since 20260801.',
+    'import-trae-warn':'TraeCode does not allow registering custom stdio MCP: this MCP package does not apply. Use the ingest layer or curl instead:',
+    'import-trae-tip':'Refresh the Dashboard Events page (Agent=trae-code) to see it; bulk import history with python3 -m mo_ingest --platform trae --mode log --since 20260801 --send.',
     'import-no-file':'Please choose a file first',
     'import-ext-invalid':'Only .xlsx or .json files are supported',
     'import-json-parse':'JSON parse failed, check that the file content is valid JSON',
@@ -4046,6 +4383,7 @@ const I18N={
     'sec-sk-slow':'③ Slow Calls (over threshold)','sec-sk-calls':'④ Skill Calls (Top 10)',
     'sec-sk-tokens':'⑤ Skill Token Usage','sec-sk-refs':'⑥ Skill Agent References',
     'col-user':'User','col-steps':'Actions','col-outcome':'Result','unit-step':'steps','unit-token':'tok','no-actions':'No action steps',
+    'import-no-question':'Imported data has no user prompt',
     'col-sess-id':'Session ID','col-event-count':'Events','col-last-ts':'Last Active','col-action':'Action',
     'zone-total':'Total Window','zone-total-2':'Total Budget','zone-mem':'Memory Zone',
     'zone-empty':'No context snapshot for this agent. 5-zone budget unavailable.',
@@ -4095,12 +4433,141 @@ function toggleLang(){
   if($('page-token').classList.contains('active')) loadToken();
   if($('page-problems').classList.contains('active')) loadProblems();
   if($('page-timeline').classList.contains('active')){ evPage=0; loadEvents(); loadKpi(); }
+  if($('page-listen').classList.contains('active')){obInit();obRenderScopeSel();const tt=$('obFeedTotal');if(tt)tt.textContent=(obLastTotal!=null)?t('ob-feed-total',obLastTotal):'';}
 }
 $('langToggle').addEventListener('click',toggleLang);
 if($('agentLangToggle')) $('agentLangToggle').addEventListener('click',toggleLang);
 
-// ============ navigation ============
+// ============ navigation ============// ============ 一键接入 · 监听（Qoder Hook 自动配置） ============
+let obPlatform='qoder',obPlatforms=[];
+function obBd(txt,bg,fg){return `<span style="display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${bg};color:${fg||'#fff'}">${esc(txt)}</span>`}
+async function obInit(){
+  try{const r=await fetch('/api/v1/onboarding/platforms',{credentials:'same-origin'});const d=await r.json();obPlatforms=d.platforms||[];}
+  catch(e){obPlatforms=[{id:'qoder',name:'Qoder',supported:true}];}
+  obRenderPlats();obScan();
+}
+let obFeedTimer=null,obLastTotal=null;
+function obStartFeed(){obStopFeed();obLoadScopes();obFeedTick();obFeedTimer=setInterval(obFeedTick,3000);}
+function obStopFeed(){if(obFeedTimer){clearInterval(obFeedTimer);obFeedTimer=null;}}
+let obScopes={projects:[],workspaces:[],tasks:[]};
+async function obLoadScopes(){
+  try{const r=await fetch('/api/v1/onboarding/qoder/scopes?window=120',{credentials:'same-origin'});if(!r.ok)return;obScopes=await r.json();}
+  catch(e){return;}
+  obRenderScopeSel();
+}
+function obRenderScopeSel(){
+  const sc=$('obFeedScope');if(!sc)return;const cur=sc.value||'';
+  sc.innerHTML=`<option value="">${esc(t('ob-feed-scope-all'))}</option><option value="project">${esc(t('ob-feed-scope-project'))}</option><option value="workspace">${esc(t('ob-feed-scope-workspace'))}</option><option value="task">${esc(t('ob-feed-scope-task'))}</option><option value="escape">${esc(t('ob-feed-scope-escape'))}</option>`;
+  sc.value=cur;obRenderValueSel();
+}
+function obRenderValueSel(){
+  const sc=$('obFeedScope'),vl=$('obFeedValue');if(!sc||!vl)return;const scope=sc.value;
+  if(!scope){vl.style.display='none';vl.innerHTML='';return;}
+  if(scope==='escape'){vl.style.display='none';vl.innerHTML='';return;}
+  vl.style.display='';
+  const key=scope==='project'?'projects':scope==='workspace'?'workspaces':'tasks';
+  const list=obScopes[key]||[];const cur=vl.value||'';
+  vl.innerHTML=list.map(o=>{const name=String(o.name==null?'':o.name);
+  if(scope==='task'){const p=String(o.prompt||'').replace(/\s+/g,' ').trim();const proj=String(o.project||'');const short=p?(p.slice(0,24)+(p.length>24?'\u2026':'')):(proj||name.slice(0,8));const txt=short+((p&&proj)?(' \u00b7 '+proj):'');const title=(p||'(\u65e0\u63d0\u95ee\u8bb0\u5f55)')+' \u00b7 task '+name;return `<option value="${esc(name)}" title="${esc(title)}">${esc(txt)} (${o.count})</option>`;}
+  return `<option value="${esc(name)}">${esc(name)} (${o.count})</option>`;}).join('');
+  if(list.some(o=>String(o.name)===cur))vl.value=cur;
+}
+function obFeedScopeChanged(){obRenderValueSel();obFeedTick();}
+async function obFeedTick(){
+  const box=$('obFeed');if(!box)return;
+  if(obPlatform!=='qoder'){box.style.display='none';return;}
+  box.style.display='';
+  const sc=$('obFeedScope'),vl=$('obFeedValue');const scope=sc?sc.value:'',val=vl?vl.value:'';
+  let url='/api/v1/onboarding/qoder/feed?limit=10';
+  if(scope==='escape')url+='&scope=escape';
+  else if(scope&&val)url+='&scope='+encodeURIComponent(scope)+'&value='+encodeURIComponent(val);
+  try{
+    const r=await fetch(url,{credentials:'same-origin'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();obRenderFeed(d.events||[]);
+    obLastTotal=d.total;const tt=$('obFeedTotal');if(tt)tt.textContent=(d.total!=null)?t('ob-feed-total',d.total):'';
+  }catch(e){/* 静默：下一拍再试 */}
+}
+function obRenderFeed(evts){
+  const box=$('obFeed');if(!box)return;
+  if(!evts.length){box.innerHTML=`<div style="color:#8b949e">${esc(t('ob-feed-empty'))}</div>`;return;}
+  const opc=o=>({WRITE:'#3fb950',READ:'#58a6ff',UPDATE:'#d29922',EXPIRE:'#bc8cff'}[o]||'#8b949e');
+  box.innerHTML=evts.map(e=>{
+    const tm=e.ts?new Date(e.ts).toLocaleTimeString():'';
+    const sm=e.summary||e.ioKind||'';
+    const ws=e.workspace||e.project;
+    const tag=ws?`<span style="color:#79c0ff;background:rgba(56,139,253,.15);border-radius:4px;padding:0 5px;margin-right:4px">${esc(ws)}</span>`:'';
+    const tk=e.task?`<span style="color:#d2a8ff;background:rgba(210,168,255,.12);border-radius:4px;padding:0 5px;margin-right:4px">#${esc(String(e.task).slice(0,6))}</span>`:'';
+    const warn=e.escaped?`<span style="color:#f85149;background:rgba(248,81,73,.18);border-radius:4px;padding:0 5px;margin-right:4px;font-weight:700" title="${esc(t('ob-feed-escape-tip')+'  cwd: '+(e.projectPath||'')+'  → ws: '+(e.workspacePath||''))}">⚠</span>`:'';
+    return `<div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis${e.escaped?';background:rgba(248,81,73,.07)':''}"><span style="color:#8b949e">${esc(tm)}</span> ${warn}${tag}${tk}<span style="color:${opc(e.op)};font-weight:600">${esc(e.op||'')}</span> <span>${esc(sm)}</span></div>`;
+  }).join('');
+  box.scrollTop=box.scrollHeight;
+}
+function obRenderPlats(){
+  const row=$('obPlatRow');if(!row)return;row.innerHTML='';
+  obPlatforms.forEach(p=>{
+    const b=document.createElement('button');
+    b.className='btn'+(p.id===obPlatform?'':' ghost');
+    b.style.opacity=p.supported?'1':'.5';b.style.cursor=p.supported?'pointer':'not-allowed';
+    const nm=(I18N[LANG]&&I18N[LANG]['ob-plat-'+p.id])||p.name;
+    b.textContent=nm+(p.supported?'':' · '+t('ob-soon'));
+    b.onclick=()=>{if(!p.supported){agentToast(t('ob-soon'));return;}obPlatform=p.id;obRenderPlats();obScan();};
+    row.appendChild(b);
+  });
+}
+async function obScan(){
+  const box=$('obStatus');if(!box)return;
+  if(obPlatform!=='qoder'){box.innerHTML=`<div class="empty">${esc(t('ob-soon'))}</div>`;obRenderDoc();return;}
+  box.innerHTML=`<div class="empty">${esc(t('empty-loading'))}</div>`;
+  try{
+    const r=await fetch('/api/v1/onboarding/qoder/status?window=30',{credentials:'same-origin'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    obRenderStatus(await r.json());
+  }catch(e){box.innerHTML=`<div class="empty">${esc(t('ob-scan-fail'))}：${esc(e.message)}</div>`;}
+}
+function obRenderStatus(s){
+  const box=$('obStatus');if(!box)return;
+  const ok=!!s.installed,cnt=(s.recent&&s.recent.count)||0,last=s.recent&&s.recent.lastTs;
+  const badge=ok?obBd(t('ob-installed'),'#16A085'):obBd(t('ob-not-installed'),'#C0392B');
+  const flow=cnt>0?obBd(t('ob-flowing',cnt),'#16A085'):obBd(t('ob-no-flow'),'#E67E22','#fff');
+  let files='';
+  (s.files||[]).forEach(f=>{
+    const st=f.exists?(f.hookRegistered?esc(t('ob-reg',f.registeredEvents.length)):esc(t('ob-unreg'))):esc(t('ob-absent'));
+    files+=`<div style="font-size:11px;color:var(--text-dim);margin-top:3px"><code>${esc(f.path)}</code> · ${st}</div>`;
+  });
+  const yesno=v=>v?esc(t('ob-yes')):esc(t('ob-no'));
+  box.innerHTML=`<div style="border:1px solid var(--border-glass);border-radius:var(--radius-sm);padding:10px 12px;background:rgba(0,0,0,.015)">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">${badge}${flow}
+      <span style="font-size:11px;color:var(--text-dim)">${esc(t('ob-script'))}: ${yesno(s.scriptPresent)} · ${esc(t('ob-key'))}: ${yesno(s.keyConfigured)}</span>
+      <span style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn ghost" onclick="obScan()">${esc(t('ob-rescan'))}</button>
+        <button class="btn" onclick="obInstall()">${esc(t('ob-install'))}</button>
+      </span></div>
+    <div style="margin-top:6px">${files}</div>
+    ${last?`<div style="font-size:11px;color:var(--text-dim);margin-top:4px">${esc(t('ob-last'))}: ${esc(String(last).replace('T',' ').slice(0,19))}</div>`:''}
+    ${ok?'':`<div style="font-size:12px;color:var(--text-dim);margin-top:6px">${esc(t('ob-install-hint'))}</div>`}
+  </div>`;
+  obRenderDoc();
+}
+async function obInstall(){
+  const box=$('obStatus');if(!box)return;
+  if(!confirm(t('ob-install-confirm')))return;
+  box.innerHTML=`<div class="empty">${esc(t('ob-installing'))}</div>`;
+  try{
+    const r=await fetch('/api/v1/onboarding/qoder/install',{method:'POST',credentials:'same-origin'});
+    if(!r.ok){let m='HTTP '+r.status;try{const j=await r.json();if(j.error)m=j.error;}catch(e){}throw new Error(m);}
+    const d=await r.json();const changed=d.changed||[];
+    agentToast(changed.length?t('ob-install-done',changed.length):t('ob-install-none'));
+    obRenderStatus(d.status||{});
+  }catch(e){box.innerHTML=`<div class="empty">${esc(t('ob-install-fail'))}：${esc(e.message)}</div>`;}
+}
+function obRenderDoc(){const b=$('obDocBody');if(!b)return;b.innerHTML=obPlatform==='qoder'?t('ob-doc-qoder'):esc(t('ob-soon'));}
+
+
 function tab(name,btn){
+  // 离开「记忆提炼」页就停掉进度轮询，避免切页后定时器继续空转 / 泄漏
+  if(name!=='exoskeleton') exoStopPoll();
+  if(name!=='listen') obStopFeed();
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   $('page-'+name).classList.add('active');
   document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
@@ -4122,6 +4589,7 @@ function tab(name,btn){
   else if(name==='data-analysis') loadDataAnalysis();
   else if(name==='risk') loadRisk();
   else if(name==='usage') loadUsage();
+  else if(name==='listen'){obInit();obStartFeed();}
   else if(name==='agent'){
     agentPoll();
     // 页面从隐藏变为可见后容器高度才定型，补滚到底部，让初始化直接定位到最后一条消息
@@ -4161,6 +4629,29 @@ function exoSetStatus(msg,isErr){
 
 // 当前筛选：Agent 必选其一才出清单；Session 可选，用于收窄到单个会话。
 let exoAgent=null, exoSession=null;
+// 最近一次取回的提议与软重复表：搜索 / 排序是纯前端行为，改条件只重渲染、不重新取数（零后端改动）。
+let exoLastProposals=[], exoDupMap={}, exoUsageMap={}, exoUsageRows=[];
+// 并排两张表（分类清单 / 会话分类）各自一页几行 + 当前页码：超出翻页，不再截断丢弃。
+const EXO_PAGE_SIZE=5;
+let exoClassPage=0, exoSessionPage=0;
+
+// 分页脚：左「第 X / Y 页 · 共 N 个」，右「上一页 / 下一页」；onGo(页码) 由调用方重渲染。
+function exoPager(total,page,onGo){
+  const pages=Math.max(1,Math.ceil(total/EXO_PAGE_SIZE));
+  const foot=decEl('div',null,'display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px');
+  foot.appendChild(decEl('span',t('exo-page-info',page+1,pages,total),'font-size:11px;color:var(--text-dim)'));
+  const nav=decEl('div',null,'display:flex;gap:6px');
+  const mk=(label,to,disabled)=>{
+    const b=decEl('button',label,'height:24px;padding:0 10px;font-size:11.5px;font-family:inherit;cursor:pointer;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary)');
+    if(disabled){ b.disabled=true; b.style.opacity='0.45'; b.style.cursor='default'; }
+    else b.addEventListener('click',()=>onGo(to));
+    return b;
+  };
+  nav.appendChild(mk(t('exo-page-prev'),page-1,page<=0));
+  nav.appendChild(mk(t('exo-page-next'),page+1,page>=pages-1));
+  foot.appendChild(nav);
+  return foot;
+}
 
 async function exoLoad(){
   const body=$('exoClassesBody');
@@ -4191,19 +4682,30 @@ async function exoLoad(){
   if(exoSession && !(data.sessions||[]).some(s=>s.sessionId===exoSession)) exoSession=null;
   exoRenderAgents(data.agents||[]);
   exoRenderSessions(data.sessions||[]);
-  exoRenderClasses(data.classes||[],data.minTurns,!!data.agentId);
-  exoRenderProposals(data.proposals||[]);
+  exoRenderClasses(data.classes||[],data.minTurns,!!data.agentId,data.loads||[],data.proposals||[]);
+  exoRenderSessionList(data.sessions||[],data.taskTypes||[]);
+  // 缓存提议与软重复表（duplicates 是「两个方向各一条」，按 proposalId 建表即可直接查）。
+  exoLastProposals=data.proposals||[];
+  exoDupMap={};
+  (data.duplicates||[]).forEach(d=>{ if(d&&d.proposalId) exoDupMap[d.proposalId]=d; });
+  await exoLoadUsage();   // 先取用量读数，再渲染卡片——卡片标题行才能带上「本技能提炼耗 N token」
+  exoRenderProposals(exoLastProposals);
   // LLM 未配置优先如实报；其次，还没选 Agent 但有提议在等，就提示去哪看（无事不打扰）。
   const pend=(data.agents||[]).reduce((s,a)=>s+(a.pending||0),0);
   if(!data.enabled) exoSetStatus(t('exo-disabled'),true);
   else if(!data.agentId && pend>0) exoSetStatus(t('exo-pending-hint',pend),false);
   else exoSetStatus('');
+  // 若该 Agent 有一轮提炼正在跑（可能是别的页面/别的浏览器发起的，或刷新后重进本页），恢复进度与轮询
+  if(exoAgent) exoRefreshProgress();
 }
 
 function exoOnAgentChange(){
   const s=$('exoAgentSel');
   exoAgent=(s&&s.value)?s.value:null;
   exoSession=null;   // 换 Agent 就收起会话收窄：旧 Session 不属于新 Agent
+  exoClassPage=0; exoSessionPage=0;   // 换 Agent 回到第一页：旧页码属于旧清单
+  exoStopPoll();     // 换 Agent 立即停掉旧 Agent 的进度轮询，避免定时器泄漏与串台
+  exoRenderProgress(null);
   exoLoad();
 }
 
@@ -4243,11 +4745,17 @@ function exoRenderSessions(sessions){
 }
 
 // 分类清单表：任务类型 · 该类会话数 · 对话数 · 技能状态
-function exoRenderClasses(classes,minTurns,agentSelected){
+// loads：装载回流读数（按 skillId），proposals：用于把「类」定位到它的技能 id；
+// 二者一起在技能状态列补一行「装载 N 次 · 最近 …」——答「这个类提炼出的技能有没有被用上」。
+function exoRenderClasses(classes,minTurns,agentSelected,loads,proposals){
   const body=$('exoClassesBody');
   body.textContent='';
   const note=$('exoClassesNote');
   if(note) note.textContent=agentSelected?t('exo-classes-note',minTurns==null?30:minTurns):'';
+  const loadBySkill={};
+  (loads||[]).forEach(l=>{ if(l&&l.skillId) loadBySkill[l.skillId]=l; });
+  const skillByType={};
+  (proposals||[]).forEach(p=>{ if(p&&p.taskType&&p.skillId) skillByType[p.taskType]=p.skillId; });
   if(!agentSelected){
     // 未选 Agent 就不给类清单：不拿「全库聚合」冒充「这个 Agent 的分类」。
     body.appendChild(decEl('div',t('exo-pick-agent'),'font-size:12.5px;color:var(--text-secondary);padding:10px 2px'));
@@ -4265,7 +4773,10 @@ function exoRenderClasses(classes,minTurns,agentSelected){
   });
   const thead=decEl('thead'); thead.appendChild(head); table.appendChild(thead);
   const tbody=decEl('tbody');
-  classes.forEach(c=>{
+  const pages=Math.max(1,Math.ceil(classes.length/EXO_PAGE_SIZE));
+  if(exoClassPage>pages-1) exoClassPage=pages-1;   // 数据变少时把页码收回界内
+  const shown=classes.slice(exoClassPage*EXO_PAGE_SIZE,exoClassPage*EXO_PAGE_SIZE+EXO_PAGE_SIZE);
+  shown.forEach(c=>{
     const tr=decEl('tr');
     tr.appendChild(decEl('td',c.label,'padding:7px 10px;text-align:left;color:var(--text-primary);font-weight:600'));
     tr.appendChild(decEl('td',String(c.sessions==null?'-':c.sessions),'padding:7px 10px;text-align:right;color:var(--text-secondary)'));
@@ -4273,28 +4784,241 @@ function exoRenderClasses(classes,minTurns,agentSelected){
     const txt=c.proposalStatus?t('exo-status-'+String(c.proposalStatus).toLowerCase())
                              :(c.eligible?t('exo-skill-eligible'):t('exo-skill-below'));
     const col=c.proposalStatus?'var(--color-primary)':'var(--text-dim)';
-    tr.appendChild(decEl('td',txt,'padding:7px 10px;text-align:right;font-size:11.5px;color:'+col));
+    const td=decEl('td',null,'padding:7px 10px;text-align:right;font-size:11.5px;color:'+col+';max-width:320px');
+    td.appendChild(decEl('div',txt,null));
+    // 未提炼的类补一句「为什么没提炼」（后端 reason）：小字、右对齐、可换行，别把表格撑破
+    if(!c.proposalStatus&&c.reason){
+      td.title=c.reason;
+      td.appendChild(decEl('div',c.reason,'margin-top:2px;font-size:10.5px;font-weight:400;color:var(--text-dim);line-height:1.35;white-space:normal;word-break:break-word'));
+    }
+    // 装载回流（P0-1）：这个类提炼出的技能，被 Agent 装配装载过几次、最近一次何时。
+    // 口径是「装载」不是「调用」——现有工具事件归因不回具体技能，故只报装载事实。
+    const ld=loadBySkill[skillByType[c.taskType]];
+    if(ld){
+      td.appendChild(decEl('div',t('exo-loads',ld.loadCount==null?'-':ld.loadCount,exoFmtTime(ld.lastLoadedAt)),
+        'margin-top:2px;font-size:10.5px;font-weight:400;color:var(--text-dim);line-height:1.35'));
+    }
+    tr.appendChild(td);
     tbody.appendChild(tr);
   });
   table.appendChild(tbody);
   body.appendChild(table);
+  if(classes.length>EXO_PAGE_SIZE){
+    body.appendChild(exoPager(classes.length,exoClassPage,p=>{
+      exoClassPage=p;
+      exoRenderClasses(classes,minTurns,agentSelected,loads,proposals);   // 翻页只重渲染这一张表
+    }));
+  }
 }
 
-function exoRenderProposals(proposals){
+// 会话分类清单（P1-4）：每会话一行，可把 LLM 判错的 task_type 人工改成对的。
+// 与上面的「分类清单」互补：那张表答「类→聚合」，这张答「具体哪个会话判成了什么、能不能改」。
+// 选项面取后端给的全词表（不是上面那张类清单——它只含这个 Agent 已有的类，还可能被 Session 筛选收窄）。
+function exoRenderSessionList(sessions,taskTypes){
+  const card=$('exoSessionListCard');
+  const body=$('exoSessionListBody');
+  if(!card||!body) return;
+  body.textContent='';
+  // 未选 Agent（会话清单本就为空）时整张卡收起，不占地方
+  if(!exoAgent||!sessions.length){ card.style.display='none'; return; }
+  card.style.display='';
+  const table=decEl('table',null,'width:100%;border-collapse:collapse;font-size:12.5px');
+  const head=decEl('tr');
+  [t('exo-col-session'),t('exo-col-type'),t('exo-col-turns'),''].forEach((h,i)=>{
+    head.appendChild(decEl('th',h,'text-align:'+(i===3?'right':'left')
+      +';font-weight:600;color:var(--text-dim);font-size:11.5px;padding:7px 10px;border-bottom:1px solid var(--border-glass)'));
+  });
+  const thead=decEl('thead'); thead.appendChild(head); table.appendChild(thead);
+  const tbody=decEl('tbody');
+  const pages=Math.max(1,Math.ceil(sessions.length/EXO_PAGE_SIZE));
+  if(exoSessionPage>pages-1) exoSessionPage=pages-1;   // 数据变少（换 Agent / 纠正）时把页码收回界内
+  const shownSess=sessions.slice(exoSessionPage*EXO_PAGE_SIZE,exoSessionPage*EXO_PAGE_SIZE+EXO_PAGE_SIZE);
+  shownSess.forEach(s=>{
+    const tr=decEl('tr');
+    const sid=s.sessionId||'';
+    // 会话 id 很长，列里只放短 id（完整值挂 title，悬停可看），免把表格撑破
+    const idCell=decEl('td',sid.length>16?(sid.slice(0,16)+'…'):sid,
+      'padding:7px 10px;text-align:left;font-family:ui-monospace,Menlo,monospace;color:var(--text-secondary)');
+    idCell.title=sid;
+    tr.appendChild(idCell);
+    // 类型下拉：预选当前类型；「未分类」的会话不预选（不拿 other 顶替）
+    const tdSel=decEl('td',null,'padding:7px 10px;text-align:left');
+    const sel=document.createElement('select');
+    sel.style.cssText='height:26px;min-width:130px;font-size:12px;font-family:inherit;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary);padding:0 6px';
+    (taskTypes||[]).forEach(tt=>sel.appendChild(new Option(tt.label,tt.value)));
+    if(s.taskType) sel.value=s.taskType;
+    tdSel.appendChild(sel);
+    tr.appendChild(tdSel);
+    tr.appendChild(decEl('td',String(s.turns==null?'-':s.turns),'padding:7px 10px;text-align:right;color:var(--text-secondary)'));
+    const tdBtn=decEl('td',null,'padding:7px 10px;text-align:right');
+    const btn=decEl('button',t('exo-sessionlist-save'),
+      'height:26px;padding:0 12px;font-size:12px;cursor:pointer;border:1px solid var(--border-glass);border-radius:var(--radius-sm);background:#fff;color:var(--text-primary)');
+    btn.addEventListener('click',()=>exoCorrectSession(sid,sel.value,btn));
+    tdBtn.appendChild(btn);
+    tr.appendChild(tdBtn);
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  body.appendChild(table);
+  if(sessions.length>EXO_PAGE_SIZE){
+    body.appendChild(exoPager(sessions.length,exoSessionPage,p=>{
+      exoSessionPage=p;
+      exoRenderSessionList(sessions,taskTypes);   // 翻页只重渲染这一张表：未保存的下拉改动会随之重置
+    }));
+  }
+}
+
+// 保存某会话的纠正：POST 到外骨骼端点（经 mo-server 通配转发，前端不直连 8081），成功后整页重取。
+// 只改标签、不触发重提炼——要不要据此重提炼由人另行点「重新提炼」（不替人做他没点的动作）。
+async function exoCorrectSession(sessionId,taskType,btn){
+  if(!sessionId) return;
+  const old=btn?btn.textContent:null;
+  if(btn){ btn.disabled=true; btn.textContent=t('exo-sessionlist-saving'); }
+  try{
+    const r=await fetch('/api/v1/exoskeleton/sessions/'+encodeURIComponent(sessionId)+'/task-type',{
+      method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({taskType:taskType,note:'人工纠正'})
+    });
+    if(!r.ok){
+      let msg='HTTP '+r.status;
+      try{ const j=await r.json(); if(j&&(j.error||j.message)) msg=j.error||j.message; }catch(e){}
+      throw new Error(msg);
+    }
+    exoSetStatus(t('exo-sessionlist-saved'),false);
+    await exoLoad();
+  }catch(e){
+    exoSetStatus(t('exo-sessionlist-fail')+'：'+(e&&e.message?e.message:''),true);
+    if(btn){ btn.disabled=false; btn.textContent=old; }
+  }
+}
+
+// 搜索 / 排序条件一变就重渲染（用缓存的原始清单，不重新取数——这两件事本就只关乎「怎么看」）
+function exoOnSearchChange(){ exoRenderProposals(exoLastProposals); }
+function exoOnSortChange(){ exoRenderProposals(exoLastProposals); }
+
+// 纯前端过滤 + 排序：默认保持后端次序（新提议在前），搜索按名称 / 说明 / 类名匹配。
+function exoFilteredSorted(all){
+  const s=$('exoSearch');
+  const q=(s&&s.value)?s.value.trim().toLowerCase():'';
+  let list=(all||[]).slice();
+  if(q){
+    list=list.filter(p=>(((p.name||'')+' '+(p.description||'')+' '+(p.taskLabel||'')).toLowerCase().indexOf(q)>=0));
+  }
+  const sortEl=$('exoSortSel');
+  const sort=(sortEl&&sortEl.value)?sortEl.value:'default';
+  if(sort==='turns'){
+    list.sort((a,b)=>(b.turns||0)-(a.turns||0));
+  }else if(sort==='name'){
+    list.sort((a,b)=>String(a.name||'').localeCompare(String(b.name||'')));
+  }
+  return list;
+}
+
+function exoRenderProposals(all){
   const card=$('exoProposalsCard'), body=$('exoProposalsBody');
   body.textContent='';
-  if(!proposals||!proposals.length){ card.style.display='none'; return; }
-  proposals.forEach(p=>body.appendChild(exoProposal(p)));
+  if(!all||!all.length){ card.style.display='none'; return; }
   card.style.display='';
+  const proposals=exoFilteredSorted(all);
+  // 批量工具栏：只在有「待采纳」时才出现（已决的卡没什么可批量的）
+  const pending=proposals.filter(p=>p.status==='PENDING');
+  if(pending.length){
+    const bar=decEl('div',null,'display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:2px');
+    const pickAll=document.createElement('input');
+    pickAll.type='checkbox'; pickAll.id='exoSelectAll';
+    pickAll.setAttribute('style','width:15px;height:15px;cursor:pointer;flex:none;accent-color:var(--color-primary)');
+    pickAll.onchange=()=>exoSetAll(pickAll.checked);
+    const lab=decEl('label',t('exo-select-all'),'font-size:12px;color:var(--text-secondary);cursor:pointer');
+    lab.setAttribute('for','exoSelectAll');
+    const left=decEl('div',null,'display:inline-flex;align-items:center;gap:7px;cursor:pointer');
+    left.onclick=e=>{ if(e.target!==pickAll) pickAll.click(); };
+    left.appendChild(pickAll); left.appendChild(lab);
+    const bb=document.createElement('button');
+    bb.type='button'; bb.id='exoBatchAdoptBtn';
+    bb.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid #3AA76D;background:#E8F6EE;color:#1B7A4B;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer');
+    bb.onclick=()=>exoAdoptBatch(bb);
+    // 批量不用：与批量启用共用一份勾选，逐条独立、部分成功如实报（走 POST /dismiss-batch）
+    const db=document.createElement('button');
+    db.type='button'; db.id='exoBatchDismissBtn';
+    db.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);background:transparent;color:var(--text-secondary);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer');
+    db.onclick=()=>exoDismissBatch(db);
+    bar.appendChild(left); bar.appendChild(bb); bar.appendChild(db);
+    body.appendChild(bar);
+  }
+  if(!proposals.length){
+    // 有提议但被搜索条件滤空了：如实说是「没匹配上」，不显示成「没有技能」那种假象
+    body.appendChild(decEl('div',t('exo-empty-filtered'),'font-size:12.5px;color:var(--text-secondary);padding:10px 2px'));
+    exoBatchUpdateBtn();
+    return;
+  }
+  proposals.forEach(p=>body.appendChild(exoProposal(p)));
+  exoBatchUpdateBtn();
+}
+
+// 勾选状态一律现读 DOM：不另存一份 JS 状态，就不存在「状态与界面不同步」这类问题。
+function exoBatchSelected(){
+  return Array.from(document.querySelectorAll('#exoProposalsBody input.exo-pick'))
+              .filter(x=>x.checked).map(x=>x.value);
+}
+function exoSetAll(on){
+  document.querySelectorAll('#exoProposalsBody input.exo-pick').forEach(x=>{ x.checked=on; });
+  exoBatchUpdateBtn();
+}
+function exoBatchUpdateBtn(){
+  const ids=exoBatchSelected();
+  const n=ids.length;
+  const b=$('exoBatchAdoptBtn');
+  if(b){
+    b.textContent=n?t('exo-btn-adopt-batch-n',n):t('exo-btn-adopt-batch');
+    b.disabled=n===0;
+    b.style.opacity=n===0?'0.5':'1';
+    b.style.cursor=n===0?'not-allowed':'pointer';
+  }
+  // 批量不用与批量启用共用同一份勾选：两者都随勾选数变文案 / 置灰
+  const d=$('exoBatchDismissBtn');
+  if(d){
+    d.textContent=n?t('exo-btn-dismiss-batch-n',n):t('exo-btn-dismiss-batch');
+    d.disabled=n===0;
+    d.style.opacity=n===0?'0.5':'1';
+    d.style.cursor=n===0?'not-allowed':'pointer';
+  }
+  const all=$('exoSelectAll');
+  if(all){
+    const boxes=document.querySelectorAll('#exoProposalsBody input.exo-pick');
+    all.checked=boxes.length>0&&n===boxes.length;
+  }
 }
 
 function exoProposal(p){
   const wrap=decEl('div',null,'background:var(--bg-glass);border:1px solid var(--border-glass);border-radius:var(--radius-lg);padding:18px 20px;box-shadow:var(--shadow-card)');
   const head=decEl('div',null,'display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;margin-bottom:10px');
+  // 待采纳的卡前面挂一个勾选框，供批量启用（已决的卡不勾）
+  if(p.status==='PENDING'){
+    const ck=document.createElement('input');
+    ck.type='checkbox'; ck.className='exo-pick'; ck.value=p.proposalId;
+    ck.setAttribute('style','width:15px;height:15px;margin-top:2px;cursor:pointer;flex:none;accent-color:var(--color-primary)');
+    ck.onchange=exoBatchUpdateBtn;
+    head.appendChild(ck);
+  }
   head.appendChild(decEl('span',p.taskLabel,'font-size:11px;font-weight:700;color:var(--color-primary);background:var(--color-primary-dim);border-radius:5px;padding:2px 7px;flex:none'));
   head.appendChild(decEl('div',p.name,'font-size:14px;font-weight:700;color:var(--text-primary);flex:1;min-width:200px'));
   if(p.status==='ADOPTED') head.appendChild(decBadge(t('exo-status-adopted'),'#1B7A4B','#E8F6EE'));
   if(p.status==='DISMISSED') head.appendChild(decBadge(t('exo-status-dismissed'),'#8A6D1F','#FBF3E3'));
+  // 版本徽标：已采纳的技能会随「内容变化 + 证据增长」出新版（提议行不翻 PENDING，靠这里告知人）
+  if(p.version>1||p.status==='ADOPTED') head.appendChild(decBadge(t('exo-ver',p.version),'#5B6472','#F1F2F4'));
+  if(p.pendingVersion!=null) head.appendChild(decBadge(t('exo-ver-pending',p.pendingVersion),'#1B6FA8','#E7F1FA'));
+  // 软重复徽标：内容指纹相同但 id 不同（只标，不自动合并）
+  if(exoDupMap[p.proposalId]) head.appendChild(decBadge(t('exo-dup-badge'),'#8A6D1F','#FBF3E3'));
+  // 本技能提炼耗的 token：取自 /usage 读数（进程内，重启归零），按「Agent × 能力 × 任务类型」对上；
+  // 取不到就不显示——不硬凑 0，也不把「读不到」说成「没花钱」。名字有 flex:1，故徽标自然贴到标题行右端。
+  const capKey=p.taskType==='__fact__'?'fact':'skill';
+  const tok=exoUsageMap[(p.agentId||'')+'|'+capKey+'|'+(p.taskType||'')];
+  if(tok>0){
+    const tokBadge=decBadge(t('exo-skill-tokens',tok),'#1B6FA8','#E7F1FA');
+    tokBadge.title=t('exo-skill-tokens-tip');
+    head.appendChild(tokBadge);
+  }
   wrap.appendChild(head);
 
   // 能干什么：一句话说明这技能解决什么，是「要不要用」的第一眼依据
@@ -4305,12 +5029,19 @@ function exoProposal(p){
     wrap.appendChild(row);
   }
 
+  // 软重复提示：内容指纹相同但 id 不同，只标「和谁像」，合不合由人决定（硬重复已自动去重）
+  const dup=exoDupMap[p.proposalId];
+  if(dup){
+    wrap.appendChild(decEl('div',t('exo-dup-hint',dup.otherName,dup.otherTaskLabel),
+      'margin-bottom:10px;font-size:11.5px;color:#8A6D1F;background:#FBF3E3;border-radius:var(--radius-sm);padding:7px 10px;white-space:pre-wrap'));
+  }
+
   // 完整流程（prompt）默认展开：看不到具体步骤就判断不了「有啥用途」，故直接摊开、但仍可折叠
   if(p.prompt){
     const det=document.createElement('details');
     det.open=true;
     det.setAttribute('style','margin-bottom:10px');
-    det.appendChild(decEl('summary',t('exo-prompt-toggle'),'font-size:11.5px;font-weight:600;color:var(--text-dim);cursor:pointer'));
+    det.appendChild(decEl('summary',p.taskType==='__fact__'?t('exo-prompt-toggle-fact'):t('exo-prompt-toggle'),'font-size:11.5px;font-weight:600;color:var(--text-dim);cursor:pointer'));
     det.appendChild(decEl('pre',p.prompt,'margin:8px 0 0;padding:10px 12px;background:#F7F8FA;border-radius:var(--radius-sm);font-size:11.5px;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;font-family:inherit'));
     wrap.appendChild(det);
   }
@@ -4321,6 +5052,9 @@ function exoProposal(p){
     p.tools.forEach(x=>row.appendChild(decEl('code',x,'font-size:11.5px;color:var(--text-secondary);background:#F4F5F7;border-radius:4px;padding:1px 6px')));
     wrap.appendChild(row);
   }
+
+  // 提炼思考历程：这个技能「凭什么」被提炼出来（模型自述 + 确定性证据）。仅当有心路时才有入口。
+  const rt=exoReasoningToggle(p);
 
   if(p.status==='PENDING'){
     const opts=decEl('div',null,'display:flex;gap:10px;flex-wrap:wrap');
@@ -4333,7 +5067,55 @@ function exoProposal(p){
     dis.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);background:transparent;color:var(--text-secondary);font-size:12.5px;font-family:inherit;cursor:pointer');
     dis.onclick=()=>exoDismiss(p.proposalId,dis);
     opts.appendChild(adopt); opts.appendChild(dis);
+    // 入口放在按钮行右侧（与「启用 / 不用」同一行，点开就地展开）
+    if(rt){ rt.btn.style.marginLeft='auto'; opts.appendChild(rt.btn); }
     wrap.appendChild(opts);
+    if(rt) wrap.appendChild(rt.panel);
+  }
+
+  // 效果验证：只对「已启用」的技能——采纳前 vs 采纳后对照。只出结论，撤回采纳由人拍板。
+  if(p.status==='ADOPTED'){
+    const row=decEl('div',null,'display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px');
+    const btn=document.createElement('button');
+    btn.type='button'; btn.textContent=t('exo-btn-effect');
+    btn.setAttribute('style','padding:6px 14px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);background:transparent;color:var(--text-secondary);font-size:12px;font-family:inherit;cursor:pointer;flex:none');
+    const box=decEl('div',null,'flex:1;min-width:220px');
+    btn.onclick=()=>exoEffect(p.proposalId,btn,box);
+    row.appendChild(btn); row.appendChild(box);
+    wrap.appendChild(row);
+  }
+
+  // 有新版：内容已备好（写进版本链），但库里装的还是旧版——点「更新」才落进工作台。
+  // 复用 POST /{id}/adopt（零 mo-server 改动）：采纳即把最新版本标为 ADOPTED、落盘由此触发。
+  if(p.status==='ADOPTED'&&p.pendingVersion!=null){
+    const row=decEl('div',null,'display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px');
+    row.appendChild(decEl('span',t('exo-ver-pending-hint',p.pendingVersion),'font-size:11.5px;color:#1B6FA8'));
+    const ub=document.createElement('button');
+    ub.type='button'; ub.textContent=t('exo-btn-update',p.pendingVersion);
+    ub.setAttribute('style','padding:7px 18px;border-radius:var(--radius-sm);border:1px solid #1B6FA8;background:#E7F1FA;color:#1B6FA8;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;flex:none');
+    ub.onclick=()=>exoUpdate(p.proposalId,ub);
+    row.appendChild(ub);
+    wrap.appendChild(row);
+  }
+
+  // 版本历史：懒加载（点开才取 GET /{id}/versions），只在「有版本可言」的卡上出现（v1 的待采纳卡不必看）
+  if(p.version>1||p.status==='ADOPTED'||p.status==='DISMISSED'){
+    const det=document.createElement('details');
+    det.setAttribute('style','margin-top:4px');
+    det.appendChild(decEl('summary',t('exo-btn-ver-history'),'font-size:11.5px;font-weight:600;color:var(--text-dim);cursor:pointer'));
+    const box=decEl('div',null,'margin-top:8px');
+    det.appendChild(box);
+    let loaded=false;
+    det.addEventListener('toggle',()=>{ if(det.open&&!loaded){ loaded=true; exoLoadVersions(p.proposalId,box); } });
+    wrap.appendChild(det);
+  }
+
+  // 已决的卡没有「启用 / 不用」那一行：入口单独一行、右对齐，仍可点开回看当时的心路
+  if(p.status!=='PENDING'&&rt){
+    const row=decEl('div',null,'display:flex;align-items:center;justify-content:flex-end;margin-bottom:10px');
+    row.appendChild(rt.btn);
+    wrap.appendChild(row);
+    wrap.appendChild(rt.panel);
   }
 
   // 来源：这技能是从哪个 Agent、多少条对话里提炼出来的（判断可不可信）
@@ -4342,6 +5124,72 @@ function exoProposal(p){
   if(p.turns!=null) src.push(t('exo-from-turns',p.turns));
   if(src.length) wrap.appendChild(decEl('div',t('exo-source')+'：'+src.join(' · '),'margin-top:10px;font-size:11px;color:var(--text-dim)'));
   return wrap;
+}
+
+// 提炼思考历程：返回 {btn,panel} 或 null（无内容 / 旧数据时不给入口）。
+// 内容分两块——「模型自述」仅供理解、「确定性证据」可逐条核对（与 A2「模型自述不能当标签」一致）。
+function exoReasoningToggle(p){
+  const r=p?p.reasoning:null;
+  if(!r) return null;
+  const has=x=>x&&x.length;
+  const hasText=s=>s&&s.trim();
+  const hasModel=has(r.patterns)||has(r.preferences)||has(r.keyPoints)||hasText(r.evidence);
+  const hasDet=has(r.sessions)||has(r.samples);
+  const hasLog=hasText(r.logSummary)||has(r.logFacts);
+  if(!hasLog&&!hasModel&&!hasDet) return null;
+
+  const panel=decEl('div',null,'display:none;margin:8px 0 10px;padding:12px 14px;background:#F7F8FA;border:1px solid var(--border-glass);border-radius:var(--radius-sm)');
+  panel.appendChild(decEl('div',t('exo-reason-title'),'font-size:12.5px;font-weight:700;color:var(--text-primary)'));
+  panel.appendChild(decEl('div',t('exo-reason-hint'),'font-size:11px;color:var(--text-dim);margin:2px 0 4px'));
+  // 日志总结：先讲清「被提炼的那批日志」，再给结论——系统硬统计与模型总结分列（A2）
+  if(hasLog){
+    panel.appendChild(decEl('div',t('exo-reason-log'),'font-size:11px;font-weight:700;color:#5B6472;margin-top:10px'));
+    if(has(r.logFacts)){
+      panel.appendChild(decEl('div',t('exo-reason-log-facts'),'font-size:11.5px;font-weight:600;color:var(--text-dim);margin:8px 0 3px'));
+      panel.appendChild(decEl('div',r.logFacts.join(' · '),'font-size:12px;color:var(--text-secondary);line-height:1.6'));
+    }
+    if(hasText(r.logSummary)){
+      panel.appendChild(decEl('div',t('exo-reason-log-model'),'font-size:11.5px;font-weight:600;color:var(--text-dim);margin:8px 0 3px'));
+      panel.appendChild(decEl('div',r.logSummary,'font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap'));
+    }
+  }
+  // 模型自述：规律 / 偏好 / 关键点 / 依据
+  if(hasModel){
+    panel.appendChild(decEl('div',t('exo-reason-model'),'font-size:11px;font-weight:700;color:#5B6472;margin-top:8px;border-top:1px dashed var(--border-glass);padding-top:8px'));
+    exoReasonList(t('exo-reason-patterns'),r.patterns,panel);
+    exoReasonList(t('exo-reason-preferences'),r.preferences,panel);
+    exoReasonList(t('exo-reason-keypoints'),r.keyPoints,panel);
+    if(hasText(r.evidence)){
+      panel.appendChild(decEl('div',t('exo-reason-evidence'),'font-size:11.5px;font-weight:600;color:var(--text-dim);margin:8px 0 3px'));
+      panel.appendChild(decEl('div',r.evidence,'font-size:12px;color:var(--text-secondary);line-height:1.6;white-space:pre-wrap'));
+    }
+  }
+  // 确定性证据：依据的会话 / 会话代表原话
+  if(hasDet){
+    panel.appendChild(decEl('div',t('exo-reason-det'),'font-size:11px;font-weight:700;color:#5B6472;margin-top:8px;border-top:1px dashed var(--border-glass);padding-top:8px'));
+    if(has(r.sessions)) exoReasonList(t('exo-reason-sessions')+' · '+t('exo-reason-sessions-n',r.sessions.length),r.sessions,panel);
+    if(has(r.samples)){
+      panel.appendChild(decEl('div',t('exo-reason-samples'),'font-size:11.5px;font-weight:600;color:var(--text-dim);margin:8px 0 3px'));
+      r.samples.forEach(s=>panel.appendChild(decEl('div','「'+s+'」','font-size:12px;color:var(--text-secondary);line-height:1.6;margin:3px 0;white-space:pre-wrap')));
+    }
+  }
+
+  const btn=document.createElement('button');
+  btn.type='button'; btn.textContent='💡 '+t('exo-btn-reasoning');
+  btn.setAttribute('style','padding:7px 16px;border-radius:var(--radius-sm);border:1px solid var(--border-glass);background:transparent;color:var(--text-secondary);font-size:12.5px;font-family:inherit;cursor:pointer;flex:none');
+  let open=false;
+  btn.onclick=()=>{ open=!open; panel.style.display=open?'':'none'; btn.textContent=(open?'▾ ':'💡 ')+t('exo-btn-reasoning'); };
+  return {btn:btn,panel:panel};
+}
+
+// 心路历程里的一段带标签的列表（空则整段不渲染）
+function exoReasonList(label,arr,wrap){
+  if(!arr||!arr.length) return;
+  wrap.appendChild(decEl('div',label,'font-size:11.5px;font-weight:600;color:var(--text-dim);margin:8px 0 3px'));
+  const ul=document.createElement('ul');
+  ul.setAttribute('style','margin:0;padding-left:18px');
+  arr.forEach(x=>ul.appendChild(decEl('li',x,'font-size:12px;color:var(--text-secondary);line-height:1.6;margin:2px 0')));
+  wrap.appendChild(ul);
 }
 
 async function exoAdopt(id,btn){
@@ -4372,32 +5220,496 @@ async function exoDismiss(id,btn){
   }
 }
 
-async function exoDiscover(){
-  if(!exoAgent){ exoSetStatus(t('exo-discover-need-agent'),true); return; }
-  const btn=$('exoDiscoverBtn');
-  const old=btn.textContent;
-  btn.disabled=true; btn.textContent=t('exo-loading');
-  exoSetStatus('');
+// ===== 批量采纳：一次启用多张待采纳的卡 =====
+// 走 mo-server 的 /skills/adopt-batch（逐条独立、部分成功如实报），报告里也列出每条失败原因。
+async function exoAdoptBatch(btn){
+  const ids=exoBatchSelected();
+  if(!ids.length){ exoSetStatus(t('exo-batch-none'),true); return; }
+  if(btn) btn.disabled=true;
+  exoSetStatus(t('exo-batch-working',ids.length));
   try{
-    const r=await fetch(EXO_BASE+'/discover?agent='+encodeURIComponent(exoAgent),{method:'POST',credentials:'same-origin'});
+    const r=await fetch(EXO_BASE+'/adopt-batch',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})});
     let j=null; try{ j=await r.json(); }catch(e){}
     if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
-    if(j.enabled===false){
-      exoSetStatus(j.note||t('exo-disabled'),true);   // 未启用如实报，不当失败
+    const msg=(j&&j.message)?j.message:t('exo-batch-ok');
+    const fails=((j&&j.results)||[]).filter(x=>!x.ok);   // 失败的逐条列出，不把「部分成功」说成「成功」
+    if(fails.length){
+      exoSetStatus(msg+' ｜ '+fails.map(x=>x.proposalId+'：'+x.message).join('；'),true);
     }else{
-      agentToast(t('exo-discover-ok')+' · '+t('exo-discover-stat',j.classes,j.offered,j.quiet,j.failed,j.skipped));
+      exoSetStatus(msg,false);
     }
+    agentToast(msg);
     await exoLoad();
   }catch(e){
-    exoSetStatus(t('exo-discover-fail')+'：'+(e&&e.message?e.message:''),true);
-  }finally{
-    btn.disabled=false; btn.textContent=old;
+    if(btn) btn.disabled=false;
+    exoSetStatus(t('exo-batch-fail')+'：'+(e&&e.message?e.message:''),true);
   }
+}
+
+// ===== 批量不用：与批量启用共用一份勾选，逐条独立、部分成功如实报 =====
+// 走外骨骼的 POST /dismiss-batch（HTTP 恒 200，ids 空才是 400），报告里也列出每条失败原因。
+async function exoDismissBatch(btn){
+  const ids=exoBatchSelected();
+  if(!ids.length){ exoSetStatus(t('exo-batch-none'),true); return; }
+  if(btn) btn.disabled=true;
+  exoSetStatus(t('exo-batch-dismiss-working',ids.length));
+  try{
+    const r=await fetch(EXO_BASE+'/dismiss-batch',{method:'POST',credentials:'same-origin',
+      headers:{'Content-Type':'application/json'},body:JSON.stringify({ids:ids})});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    const msg=(j&&j.message)?j.message:t('exo-batch-dismiss-ok');
+    const fails=((j&&j.results)||[]).filter(x=>!x.ok);   // 失败的逐条列出，不把「部分成功」说成「成功」
+    if(fails.length){
+      exoSetStatus(msg+' ｜ '+fails.map(x=>x.proposalId+'：'+x.message).join('；'),true);
+    }else{
+      exoSetStatus(msg,false);
+    }
+    agentToast(msg);
+    await exoLoad();
+  }catch(e){
+    if(btn) btn.disabled=false;
+    exoSetStatus(t('exo-batch-dismiss-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+// ===== 更新到新版：复用 POST /{id}/adopt（采纳即把最新版本标为 ADOPTED、触发 mo-server 重新落盘）=====
+async function exoUpdate(id,btn){
+  if(btn) btn.disabled=true;
+  try{
+    const r=await fetch(EXO_BASE+'/'+encodeURIComponent(id)+'/adopt',{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    agentToast(t('exo-update-ok'));
+    await exoLoad();
+  }catch(e){
+    if(btn) btn.disabled=false;
+    exoSetStatus(t('exo-update-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+// ===== 版本历史：懒加载某条提议的每一版内容快照（新 → 旧），在 details 里展开 =====
+async function exoLoadVersions(id,box){
+  box.textContent='';
+  box.appendChild(decEl('div',t('exo-loading'),'font-size:11.5px;color:var(--text-dim)'));
+  let rows;
+  try{
+    const r=await fetch(EXO_BASE+'/'+encodeURIComponent(id)+'/versions',{credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    rows=j;
+  }catch(e){
+    box.textContent='';
+    box.appendChild(decEl('div',t('exo-ver-history-fail')+'：'+(e&&e.message?e.message:''),
+      'font-size:11.5px;color:#C0392B;white-space:pre-wrap'));
+    return;
+  }
+  box.textContent='';
+  if(!rows||!rows.length){
+    box.appendChild(decEl('div',t('exo-ver-history-empty'),'font-size:11.5px;color:var(--text-dim)'));
+    return;
+  }
+  rows.forEach(v=>{
+    const row=decEl('div',null,'border-left:2px solid var(--border-glass);padding:6px 0 6px 10px;margin-bottom:6px');
+    const h=decEl('div',null,'display:flex;align-items:center;gap:8px;flex-wrap:wrap');
+    h.appendChild(decEl('span',t('exo-ver',v.version),'font-size:11.5px;font-weight:700;color:var(--text-primary)'));
+    const st=String(v.status||'').toLowerCase();
+    h.appendChild(decBadge(t('exo-ver-status-'+st),statusColor(st)[0],statusColor(st)[1]));
+    if(v.createdAt) h.appendChild(decEl('span',exoFmtTime(v.createdAt),'font-size:10.5px;color:var(--text-dim)'));
+    row.appendChild(h);
+    if(v.description) row.appendChild(decEl('div',v.description,'margin-top:3px;font-size:11.5px;color:var(--text-secondary)'));
+    if(v.prompt){
+      const det=document.createElement('details');
+      det.setAttribute('style','margin-top:4px');
+      det.appendChild(decEl('summary',t('exo-prompt-toggle'),'font-size:11px;color:var(--text-dim);cursor:pointer'));
+      det.appendChild(decEl('pre',v.prompt,'margin:6px 0 0;padding:8px 10px;background:#F7F8FA;border-radius:var(--radius-sm);font-size:11px;color:var(--text-primary);white-space:pre-wrap;word-break:break-word;max-height:260px;overflow:auto;font-family:inherit'));
+      row.appendChild(det);
+    }
+    box.appendChild(row);
+  });
+}
+
+function statusColor(st){
+  return st==='adopted'?['#1B7A4B','#E8F6EE']:(st==='pending'?['#1B6FA8','#E7F1FA']:['#5B6472','#F1F2F4']);
+}
+
+// ===== 操作与提炼历史：一张只增不改的流水（人机共用），按需拉取 =====
+async function exoHistoryLoad(){
+  const body=$('exoHistoryBody');
+  if(!body) return;
+  const note=$('exoHistoryNote');
+  if(note) note.textContent=t('exo-history-note');
+  const btn=$('exoHistoryBtn');
+  if(btn) btn.disabled=true;
+  body.textContent='';
+  body.appendChild(decEl('div',t('exo-loading'),'font-size:12.5px;color:var(--text-secondary);padding:8px 2px'));
+  let rows;
+  try{
+    const qs=[];
+    if(exoAgent) qs.push('agent='+encodeURIComponent(exoAgent));
+    qs.push('limit=100');
+    const r=await fetch(EXO_BASE+'/events?'+qs.join('&'),{credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    rows=j;
+  }catch(e){
+    body.textContent='';
+    body.appendChild(decEl('div',t('exo-history-err')+'：'+(e&&e.message?e.message:''),
+      'font-size:12.5px;color:#C0392B;padding:8px 2px;white-space:pre-wrap'));
+    return;
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+  body.textContent='';
+  if(!rows||!rows.length){
+    body.appendChild(decEl('div',t('exo-history-empty'),'font-size:12.5px;color:var(--text-secondary);padding:8px 2px'));
+    return;
+  }
+  const cell='padding:7px 10px;border-bottom:1px solid var(--border-glass)';
+  const table=decEl('table',null,'width:100%;border-collapse:collapse;font-size:12.5px');
+  const head=decEl('tr');
+  [t('exo-history-col-time'),t('exo-history-col-kind'),t('exo-history-col-actor'),
+   t('exo-history-col-what'),t('exo-history-col-detail')].forEach((h,i)=>{
+    head.appendChild(decEl('th',h,'text-align:left;font-weight:600;color:var(--text-dim);font-size:11.5px;padding:7px 10px;border-bottom:1px solid var(--border-glass)'));
+  });
+  const thead=decEl('thead'); thead.appendChild(head); table.appendChild(thead);
+  const tb=decEl('tbody');
+  rows.forEach(ev=>{
+    const tr=decEl('tr');
+    tr.appendChild(decEl('td',ev.createdAt?exoFmtTime(ev.createdAt):'—',cell+';color:var(--text-dim);white-space:nowrap'));
+    tr.appendChild(decEl('td',exoKindLabel(ev.kind),cell+';color:var(--text-primary);font-weight:600;white-space:nowrap'));
+    tr.appendChild(decEl('td',ev.actor==='HUMAN'?t('exo-history-actor-human'):t('exo-history-actor-system'),cell+';color:var(--text-secondary)'));
+    tr.appendChild(decEl('td',exoEventWhat(ev),cell+';color:var(--text-secondary);max-width:280px;word-break:break-word'));
+    tr.appendChild(decEl('td',ev.detail||'',cell+';color:var(--text-secondary);white-space:normal;word-break:break-word'));
+    tb.appendChild(tr);
+  });
+  table.appendChild(tb);
+  body.appendChild(table);
+}
+
+// 事件动作的中文标签；未知取值原样透出（不假装认识）
+function exoKindLabel(kind){
+  const k=String(kind||'').toLowerCase();
+  const known=['offer','quiet','failed','skip','adopt','dismiss','revise','dedup'];
+  return known.indexOf(k)>=0?t('exo-history-kind-'+k):(kind||'');
+}
+
+// 事件「作用于」：有提议就用它的 id，否则退回 agent/task（QUIET / FAILED 没有提议行）
+function exoEventWhat(ev){
+  if(ev.proposalId) return ev.proposalId+(ev.version?(' · '+t('exo-ver',ev.version)):'');
+  const parts=[];
+  if(ev.agentId) parts.push(ev.agentId);
+  if(ev.taskType) parts.push(ev.taskType);
+  return parts.length?parts.join(' · '):'—';
+}
+
+// 时刻显示：本地时间到分（ISO 串直接解析，取不到就原样返回）
+function exoFmtTime(iso){
+  const d=new Date(iso);
+  if(isNaN(d.getTime())) return String(iso||'');
+  const p=n=>(n<10?'0':'')+n;
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());
+}
+
+// ===== 提炼事实：为当前 Agent 提炼一份「项目结构约定」（每 Agent 一份，与技能提炼各自独立）=====
+async function exoDiscoverFact(){
+  if(!exoAgent){ exoSetStatus(t('exo-fact-need-agent'),true); return; }
+  const btn=$('exoFactBtn');
+  if(btn) btn.disabled=true;
+  exoSetStatus(t('exo-fact-working'));
+  try{
+    const r=await fetch(EXO_BASE+'/discover/fact?agent='+encodeURIComponent(exoAgent),{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    exoSetStatus((j&&j.note)?j.note:t('exo-fact-ok'), j&&j.failed>0);
+    agentToast(t('exo-fact-ok'));
+    await exoLoad();
+  }catch(e){
+    exoSetStatus(t('exo-fact-fail')+'：'+(e&&e.message?e.message:''),true);
+  }finally{
+    if(btn) btn.disabled=false;
+  }
+}
+
+// ===== 效果验证：拉 /skills/{id}/effect，按「通过 / 不通过 / 不可测」三态如实渲染 =====
+async function exoEffect(id,btn,box){
+  if(btn) btn.disabled=true;
+  box.textContent='';
+  box.appendChild(decEl('div',t('exo-effect-loading'),'font-size:11.5px;color:var(--text-dim)'));
+  try{
+    const r=await fetch(EXO_BASE+'/'+encodeURIComponent(id)+'/effect',{credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    box.textContent='';
+    exoRenderEffect(j,box);
+  }catch(e){
+    box.textContent='';
+    box.appendChild(decEl('div',t('exo-effect-fail')+'：'+(e&&e.message?e.message:''),
+      'font-size:11.5px;color:#C0392B;white-space:pre-wrap'));
+  }finally{ if(btn) btn.disabled=false; }
+}
+
+// 结论徽标 + 前后两组读数 + 逐项明细（不可测时不列明细）+ tripwire + 口径提示（完整口径放 title）
+function exoRenderEffect(j,box){
+  const v=j.verdict;
+  const badge=v==='PASS'?decBadge(t('exo-effect-pass'),'#1B7A4B','#E8F6EE')
+             :(v==='FAIL'?decBadge(t('exo-effect-fail-verdict'),'#B23B3B','#FBECEC')
+             :decBadge(t('exo-effect-unknown'),'#8A6D1F','#FBF3E3'));
+  const head=decEl('div',null,'display:flex;align-items:center;gap:8px;flex-wrap:wrap');
+  head.appendChild(badge);
+  box.appendChild(head);
+
+  const pct=x=>Math.round(((x==null?0:x))*1000)/10;               // 0.1234 → 12.3
+  const rd=x=>Math.round(((x==null?0:x))*100)/100;                // 2.666 → 2.67
+  const bk=(label,b)=>{ b=b||{}; return t('exo-effect-bucket',label,b.sessions||0,b.turns||0,
+      pct(b.correctedRate),pct(b.failureRate),rd(b.rounds)); };
+  box.appendChild(decEl('div',bk(t('exo-effect-before'),j.before)+' ； '+bk(t('exo-effect-after'),j.after),
+    'margin-top:7px;font-size:11.5px;color:var(--text-secondary)'));
+
+  if(v!=='UNKNOWN'&&j.items&&j.items.length){
+    j.items.forEach(it=>box.appendChild(decEl('div','· '+it.text,
+      'margin-top:3px;font-size:11px;color:var(--text-dim)')));
+  }
+  (j.tripwires||[]).forEach(w=>box.appendChild(decEl('div','⚠ '+w,
+    'margin-top:3px;font-size:11px;color:#B07A1F')));
+  const hint=decEl('div',t('exo-effect-hint'),'margin-top:6px;font-size:11px;color:var(--text-dim);cursor:help');
+  if(j.note) hint.title=j.note;   // 完整口径（含埋点定义与局限）挂在提示上，不占版面
+  box.appendChild(hint);
+}
+
+// 用量读数：不再单独成卡，只取回来建一张查找表，供各技能卡在标题行右端显示「本技能提炼耗 N token」。
+// 键 = agentId|capability|taskType（capability：技能=skill、事实=fact）；取不到就静默（用量本是旁路，不打扰）。
+async function exoLoadUsage(){
+  exoUsageMap={};
+  exoUsageRows=[];
+  let rows;
+  try{
+    const r=await fetch(EXO_BASE+'/usage',{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    rows=await r.json();
+  }catch(e){
+    exoRenderUsage();   // 取不到也收成空态，不给面板留上一轮的旧读数
+    return;
+  }
+  exoUsageRows=rows||[];
+  exoUsageRows.forEach(u=>{
+    if(!u||!u.agentId) return;
+    exoUsageMap[u.agentId+'|'+(u.capability||'')+'|'+(u.taskType||'')]=u.totalTokens||0;
+  });
+  exoRenderUsage();
+}
+
+// LLM 用量面板：把 /usage 的「Agent × 能力 × 任务类型」读数摊成一张表（进程内累计、重启归零）。
+// 选中 Agent 时把它相关的行排在前并高亮，方便对照「这个 Agent 这轮烧了多少」。
+function exoRenderUsage(){
+  const box=$('exoUsageBody');
+  if(!box) return;
+  box.textContent='';
+  const rows=exoUsageRows||[];
+  if(!rows.length){
+    box.appendChild(decEl('div',t('exo-usage-empty'),'font-size:12px;color:var(--text-secondary);padding:6px 2px'));
+    return;
+  }
+  const capLabel=c=>c==='task_type'?t('exo-usage-cap-task'):c==='skill'?t('exo-usage-cap-skill'):c==='fact'?t('exo-usage-cap-fact'):(c||'—');
+  const sorted=rows.slice().sort((a,b)=>{
+    if(exoAgent){ const am=a.agentId===exoAgent?0:1, bm=b.agentId===exoAgent?0:1; if(am!==bm) return am-bm; }
+    return (b.totalTokens||0)-(a.totalTokens||0);
+  });
+  const wrap=decEl('div',null,'overflow:auto;max-height:360px');
+  const tbl=document.createElement('table');
+  tbl.className='data-table';
+  tbl.innerHTML='<thead><tr>'+
+    '<th>'+esc(t('exo-usage-col-agent'))+'</th>'+
+    '<th>'+esc(t('exo-usage-col-cap'))+'</th>'+
+    '<th>'+esc(t('exo-usage-col-task'))+'</th>'+
+    '<th style="text-align:right">'+esc(t('exo-usage-col-calls'))+'</th>'+
+    '<th style="text-align:right">'+esc(t('exo-usage-col-failed'))+'</th>'+
+    '<th style="text-align:right">'+esc(t('exo-usage-col-token'))+'</th></tr></thead>';
+  const tb=document.createElement('tbody');
+  sorted.forEach(u=>{
+    const tr=document.createElement('tr');
+    if(exoAgent&&u.agentId===exoAgent) tr.style.background='rgba(59,130,246,.08)';
+    const mk=(txt,sty)=>{const td=document.createElement('td');td.textContent=txt;if(sty)td.style.cssText=sty;return td;};
+    tr.appendChild(mk(u.agentId||'—'));
+    tr.appendChild(mk(capLabel(u.capability)));
+    tr.appendChild(mk(u.taskType||'—'));
+    tr.appendChild(mk(String(u.calls||0),'text-align:right'));
+    tr.appendChild(mk(String(u.failed||0),'text-align:right;color:'+(u.failed>0?'#C0392B':'inherit')));
+    tr.appendChild(mk(String(u.totalTokens||0),'text-align:right;font-variant-numeric:tabular-nums'));
+    tb.appendChild(tr);
+  });
+  tbl.appendChild(tb);
+  wrap.appendChild(tbl);
+  box.appendChild(wrap);
+}
+
+// ===== 提炼进度：异步发起 + 每 2 秒轮询 + 可取消 =====
+// 定时器句柄：切换页面 / 换 Agent / 轮询出错时必须清掉，绝不泄漏。
+let exoPollTimer=null;
+
+function exoStopPoll(){
+  if(exoPollTimer){ clearInterval(exoPollTimer); exoPollTimer=null; }
+}
+
+// 已用时长：分秒；只求可读，不做花哨格式
+function exoFmtElapsed(ms){
+  if(ms==null) return '';
+  const s=Math.max(0,Math.floor(ms/1000));
+  const m=Math.floor(s/60), ss=s%60;
+  return m>0?t('exo-elapsed-ms',m,ss):t('exo-elapsed-s',ss);
+}
+
+// 渲染进度条（含「取消」按钮）；st 为空 / 未在跑且无「上轮被中断」时隐藏。
+// 落库运行态（lastRun）让「上轮跑到一半被进程重启打断」在刷新后仍看得见——不会假装什么都没发生。
+function exoRenderProgress(st){
+  const box=$('exoProgress');
+  if(!box) return;
+  const last=st&&st.lastRun;
+  const interrupted=!!(st&&!st.running&&last&&last.status==='INTERRUPTED');
+  if(!st||(!st.running&&!interrupted)){ box.style.display='none'; box.textContent=''; return; }
+  box.style.display='flex';
+  box.textContent='';
+  if(interrupted){
+    // 如实说「上轮被中断」，给可读的 done/total；不显示取消按钮（没有在跑的轮次可取消）。
+    const idone=(last.doneClasses==null?0:last.doneClasses);
+    const itotal=(last.totalClasses==null?'-':last.totalClasses);
+    box.appendChild(decEl('span',t('exo-interrupted',idone,itotal),'font-size:12px;color:#B26A00'));
+    return;
+  }
+  const done=(st.doneClasses==null?0:st.doneClasses);
+  const total=(st.totalClasses==null?'-':st.totalClasses);
+  const parts=[t('exo-progress',done,total)];
+  if(st.currentClass) parts.push(t('exo-progress-class',st.currentClass));
+  const el=exoFmtElapsed(st.elapsedMs);
+  if(el) parts.push(t('exo-progress-elapsed',el));
+  // 已用 token（P2）：与 budget-tokens 对照，让人一眼看出离预算还有多远
+  if(st.tokensUsed!=null && st.tokensUsed>0) parts.push(t('exo-progress-tokens',st.tokensUsed));
+  box.appendChild(decEl('span',parts.join(' · '),'font-size:12px;color:var(--text-secondary)'));
+  const cbtn=document.createElement('button');
+  cbtn.type='button'; cbtn.className='btn'; cbtn.id='exoCancelBtn';
+  cbtn.setAttribute('style','height:26px;padding:0 12px;font-size:12px');
+  if(st.cancelRequested){ cbtn.textContent=t('exo-btn-cancelling'); cbtn.disabled=true; }
+  else { cbtn.textContent=t('exo-btn-cancel'); cbtn.onclick=exoCancel; }
+  box.appendChild(cbtn);
+}
+
+async function exoCancel(){
+  if(!exoAgent) return;
+  const btn=$('exoCancelBtn');
+  if(btn){ btn.disabled=true; btn.textContent=t('exo-btn-cancelling'); }
+  try{
+    const r=await fetch(EXO_BASE+'/discover/cancel?agent='+encodeURIComponent(exoAgent),{method:'POST',credentials:'same-origin'});
+    let j=null; try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+    exoSetStatus(j.note||t('exo-btn-cancelling'),false);   // 后端如实说明（已请求取消 / 无需取消）
+    // 不在这里停轮询：等 status 里 running 变 false 再收尾，才能拿到最终报告
+  }catch(e){
+    if(btn){ btn.disabled=false; btn.textContent=t('exo-btn-cancel'); }
+    exoSetStatus(t('exo-cancel-fail')+'：'+(e&&e.message?e.message:''),true);
+  }
+}
+
+// 轮询一拍：取 status → 渲染进度 → 跑完则收尾
+async function exoPollTick(){
+  if(!exoAgent){ exoStopPoll(); exoRenderProgress(null); return; }
+  let st=null;
+  try{
+    const r=await fetch(EXO_BASE+'/discover/status?agent='+encodeURIComponent(exoAgent),{credentials:'same-origin'});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    st=await r.json();
+  }catch(e){
+    // 轮询出错：必须清理定时器，再把按钮还原、如实报错，不留一个转不停的计时器
+    exoStopPoll();
+    exoRenderProgress(null);
+    const btn=$('exoDiscoverBtn'); if(btn){ btn.disabled=false; btn.textContent=t('exo-btn-discover'); }
+    exoSetStatus(t('exo-poll-fail')+'：'+(e&&e.message?e.message:''),true);
+    return;
+  }
+  exoRenderProgress(st);
+  if(!st.running){ exoStopPoll(); await exoFinishDiscover(st.lastReport); }
+}
+
+function exoStartPoll(){
+  exoStopPoll();
+  exoPollTick();                          // 先立刻来一拍，进度不等待一个周期才出现
+  exoPollTimer=setInterval(exoPollTick,2000);
+}
+
+// 结束后收尾：还原按钮、隐藏进度、刷新清单与技能列表，再按报告如实报一句
+async function exoFinishDiscover(report){
+  const btn=$('exoDiscoverBtn'); if(btn){ btn.disabled=false; btn.textContent=t('exo-btn-discover'); }
+  exoRenderProgress(null);
+  await exoLoad();                        // 刷新分类清单（含每类 reason）与技能列表
+  if(!report) return;
+  const stat=t('exo-discover-stat',report.classes,report.offered,report.quiet,report.failed,report.skipped);
+  // 提前停下（取消 / 时长预算 / token 预算 / 熔断）：如实按 stopReason 报原因，不谎报「完成」
+  if(report.stopReason){
+    const key=report.stopReason==='cancel' ? 'exo-discover-cancelled' : ('exo-discover-stopped-'+report.stopReason);
+    exoSetStatus(t(key)+' · '+stat,false);
+  }
+  // 正常跑完（含「全部跳过、无事可做」的快结束）：把结论持久写进状态行，不只发一个会消失的 toast——
+  // 否则 30ms 结束的一轮里用户看不到任何反馈，误以为「点了没反应」。
+  else { exoSetStatus(t('exo-discover-ok')+' · '+stat,false); agentToast(t('exo-discover-ok')+' · '+stat); }
+}
+
+// 页面加载 / 切回本页时，若该 Agent 正在跑则恢复进度与轮询（刷新不再丢状态）
+async function exoRefreshProgress(){
+  if(!exoAgent){ exoStopPoll(); exoRenderProgress(null); return; }
+  let st=null;
+  try{
+    const r=await fetch(EXO_BASE+'/discover/status?agent='+encodeURIComponent(exoAgent),{credentials:'same-origin'});
+    if(!r.ok) return;                     // 状态取不到不打断主流程，保持现状
+    st=await r.json();
+  }catch(e){ return; }
+  if(st&&st.running){
+    exoRenderProgress(st);
+    const btn=$('exoDiscoverBtn'); if(btn){ btn.disabled=true; btn.textContent=t('exo-btn-running'); }
+    if(!exoPollTimer) exoStartPoll();     // 已在轮询就不重复起，避免堆叠定时器
+  }else{
+    exoStopPoll();
+    // 不直接清空：交给 exoRenderProgress 判「上轮被中断」——若是则照实显示，否则才隐藏。
+    exoRenderProgress(st);
+    const btn=$('exoDiscoverBtn'); if(btn){ btn.disabled=false; btn.textContent=t('exo-btn-discover'); }
+  }
+}
+
+async function exoDiscover(){
+  if(!exoAgent){ exoSetStatus(t('exo-discover-need-agent'),true); return; }
+  exoStopPoll();                          // 重新发起前先清掉旧定时器
+  const btn=$('exoDiscoverBtn');
+  btn.disabled=true; btn.textContent=t('exo-btn-running');
+  exoSetStatus(t('exo-loading'));
+  let j=null;
+  try{
+    const r=await fetch(EXO_BASE+'/discover/async?agent='+encodeURIComponent(exoAgent),{method:'POST',credentials:'same-origin'});
+    try{ j=await r.json(); }catch(e){}
+    if(!r.ok) throw new Error((j&&j.error)?j.error:('HTTP '+r.status));
+  }catch(e){
+    exoSetStatus(t('exo-discover-fail')+'：'+(e&&e.message?e.message:''),true);
+    btn.disabled=false; btn.textContent=t('exo-btn-discover');
+    return;
+  }
+  if(!j.accepted&&!j.running){
+    // 未受理且没在跑（未启用 / 未指定 Agent）：如实报，结束
+    exoSetStatus(j.note||t('exo-discover-fail'),true);
+    btn.disabled=false; btn.textContent=t('exo-btn-discover');
+    exoRenderProgress(null);
+    return;
+  }
+  if(!j.accepted&&j.running) exoSetStatus(j.note||t('exo-discover-running'),false);  // 已在跑：如实说，继续看进度
+  else exoRenderProgress({running:true,doneClasses:0,totalClasses:null,elapsedMs:0});  // 刚受理：立刻显进度占位，消除「点了没反应」空窗
+  exoStartPoll();
 }
 
 (function(){
   const d=$('exoDiscoverBtn');
   if(d) d.addEventListener('click',exoDiscover);
+  const f=$('exoFactBtn');
+  if(f) f.addEventListener('click',exoDiscoverFact);
+  // 历史按需加载：不塞进 exoLoad（它答的是「历史上发生过什么」，与当前看板是两件事）
+  const h=$('exoHistoryBtn');
+  if(h) h.addEventListener('click',exoHistoryLoad);
 })();
 
 // ============ 决策卡片页（§4.10：治理 · Governance）============
@@ -7614,7 +8926,7 @@ function renderPkgGuide(bodyId, platformId){
           <li><b>${t('import-use-1t')}</b>${t('import-use-1')}</li>
          </ol>
          <div style="color:#000000;margin-top:6px">${t('import-trae-warn')}</div>
-         <code style="display:block;margin-top:6px">python3 examples/trae_report_event.py --operation WRITE --layer prompt --memory-key KEY --summary MSG --token-count N</code>
+         <code style="display:block;margin-top:6px">curl -X POST http://127.0.0.1:8080/api/v1/events -H 'Content-Type: application/json' -d '{"agentId":"trae-code","operation":"WRITE","layer":"prompt","memoryKey":"KEY","memorySummary":"MSG","tokenCount":10}'</code>
          <div style="margin-top:8px">${t('import-trae-tip')}</div>
        </div>`;
     return;
@@ -7724,6 +9036,16 @@ const EV_PAGE_SIZE=20;
 let evPage=0;     // 当前页码（0 基）
 let evTotal=0;    // 总事件数
 
+// 导入来源家族：这些来源的审计流没有用户提问原文，memorySummary 只是命令串，不能当提问标题回落。
+// source 现在是归类后的「家族」（import/hook/workbench/otlp），导入类平台统一归到 import。
+const IMPORT_SOURCES=['import'];
+// Turn 标题：有提问原文用原文；导入来源且无原文时如实标注（不拿命令串冒充提问）；其余来源维持原回落
+function turnTitle(tn){
+  if(tn.turnUser) return tn.turnUser;
+  if(IMPORT_SOURCES.includes(tn.source)) return t('import-no-question');
+  return tn.memorySummary||tn.memoryKey||tn.eventId;
+}
+
 async function loadEvents(resetPage=true){
   if(!requireAgent()) return;
   if(resetPage) evPage=0;
@@ -7767,7 +9089,7 @@ async function loadTurns(a){
 // 渲染单个 Turn：用户问题 + 结果预览 + 操作步骤链（点击打开抽屉完整详情）
 function renderTurn(tn){
   const steps=(tn.actions||[]).slice().sort((a,b)=>(Number(a.actionIdx)||0)-(Number(b.actionIdx)||0));
-  const title=tn.turnUser||tn.memorySummary||tn.memoryKey||tn.eventId;
+  const title=turnTitle(tn);
   const outcome=String(tn.turnOutcomePreview||'');
   const fmtTime=ts=>{ if(!ts) return '--'; const d=new Date(ts); if(isNaN(d)) return '--'; const p=n=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
   const stepsHtml=steps.length
@@ -8090,17 +9412,15 @@ function renderTurnHeatmap(d,kpi,meta,grid){
   const bodyH=264, labH=30;
   const y=[0,Math.round(maxTok/2),maxTok];
   const bars=turns.map((tx,i)=>{
-    const h=Math.max(2,Math.round((tx.tokens/maxTok)*(bodyH-18)));
+    const h=Math.max(2,Math.round(Math.sqrt(tx.tokens/maxTok)*(bodyH-18)));   // 平方根刻度：单条超大 turn 不再把其余柱压到看不见，值标签仍显真实 token
     const at=tx.ts?String(tx.ts).slice(11,16):'';
     const lbl=(tx.usr||tx.outc||(tx.tokens+' tok')).replace(/"/g,'&quot;');
     return `<div class="tb-bar" onclick="selectTurn(${i})" title="${String(tx.ts||'').replace('T',' ')} · ${fmt(tx.tokens)} tok · ${lbl}"><span class="tb-val">${fmt(tx.tokens)}</span><div class="tb-fill" style="height:${h}px"></div></div>`;
   }).join('');
-  const timelabels=turns.map((tx,i)=>{
+  const timelabels=turns.map((tx)=>{
     const ts=String(tx.ts||'').replace('T',' ');
-    const date=ts.slice(0,10);       // yyyy-MM-dd
-    const prev=i>0?String(turns[i-1].ts||'').replace('T',' ').slice(0,10):null;
-    const showDate=(date!==prev);    // 仅在日期变化/第一个柱时显示完整年月日
-    return `<span title="${ts}">${showDate?date+'<br>':''}${ts.slice(11,19)}</span>`;
+    // 每柱只标 HH:MM：完整时间范围已在上方 meta 行给出；不再逐柱塞日期，避免 21px 窄列里日期被竖排换行
+    return `<span title="${ts}">${ts.slice(11,16)}</span>`;
   }).join('');
   const tips=turns.map((tx,i)=>`${String(tx.ts||'').replace('T',' ')} #${i+1} ${fmt(tx.tokens)} tok ${tx.usr?'· '+tx.usr.replace(/"/g,'&quot;'):''} ${tx.outc?'· '+tx.outc.replace(/"/g,'&quot;'):''}`).join('\n');
   grid.innerHTML=`<div class="tb-wrap">
@@ -8148,7 +9468,7 @@ function renderTurnEventsList(evs){
   const steps=evs.filter(ev=>!(ev.operation==='WRITE'&&ev.layer==='session'))
     .slice().sort((a,b)=>(Number(a.actionIdx)||0)-(Number(b.actionIdx)||0));
   const main=evs.filter(ev=>ev.operation==='WRITE'&&ev.layer==='session')[0]||steps[0]||evs[0];
-  const title=main.turnUser||main.memorySummary||main.memoryKey||main.eventId;
+  const title=turnTitle(main);
   const ratio=evs.reduce((p,ev)=>p+(Number(ev.tokenCount)||0),0);
   const stepsHtml=steps.length
     ? `<div class="msg-steps">${steps.map(st=>
@@ -9825,7 +11145,7 @@ function renderFlowGraph(nodes,edges){
     return cfg;
   });
   flowGraphInst=new G6.Graph({
-    container:el,width:el.clientWidth||600,height:el.clientHeight||560,
+    container:el,width:Math.max(el.clientWidth||0,el.parentElement?el.parentElement.clientWidth:0,320),height:el.clientHeight||560,
     // 节点坐标已按之字形（蛇形）预设，不用内置布局
     defaultNode:{type:'circle'},
     defaultEdge:{type:'quadratic'},

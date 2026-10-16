@@ -111,8 +111,13 @@ public class CorrectionDetector {
         return false;
     }
 
-    /** 失败迹象：outcome 是自由文本，只能做词表匹配；漏报可接受，误报不可。 */
-    private static boolean hasFailureSign(String outcome) {
+    /**
+     * 失败迹象：outcome 是自由文本，只能做词表匹配；漏报可接受，误报不可。
+     *
+     * <p>本方法对「技能效果验证闸门」公开（{@code public static}）：失败率是那条闸门的三项之一，
+     * 而「什么算失败」只应有一个真相来源——否则判定与纠正检测会用两套词表、静默对不上。
+     */
+    public static boolean hasFailureSign(String outcome) {
         if (outcome == null || outcome.isBlank()) {
             return false;
         }

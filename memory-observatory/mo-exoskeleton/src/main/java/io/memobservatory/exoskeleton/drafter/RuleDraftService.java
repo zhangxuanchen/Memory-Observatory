@@ -7,7 +7,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 /**
  * 规则起草：把「支撑度已达标但还没有规则」的簇交给撰写器，产出 SHADOW 草稿（§4.5）。
@@ -41,19 +40,21 @@ public class RuleDraftService {
         int created = 0;
 
         for (ClusterProfile profile : candidates) {
-            Optional<String> body = drafter.draft(profile);
-            if (body.isEmpty()) {
-                // 撰写器对该簇没有策略：如实报告，不编一条凑数
+            RuleDrafter.Draft draft = drafter.draft(profile);
+            if (!draft.produced()) {
+                // 撰写器对该簇没有策略：如实报告**它给出的原因**（替身＝表里没有；LLM＝未配置 / 失败 / 空），
+                // 不编一条凑数、也不用一句放之四海的「无对应策略」把真因掩掉（登记口 B20.1）
                 outcomes.add(new RulesReport.DraftOutcome(
-                        profile.clusterKey(), profile.turns(), null, false, "撰写器无对应策略"));
+                        profile.clusterKey(), profile.turns(), null, false, draft.reason()));
                 continue;
             }
-            int n = rules.insertShadow(profile.clusterKey(), body.get());
+            String body = draft.body().get();
+            int n = rules.insertShadow(profile.clusterKey(), body);
             if (n > 0) {
                 created++;
             }
             outcomes.add(new RulesReport.DraftOutcome(
-                    profile.clusterKey(), profile.turns(), body.get(), n > 0,
+                    profile.clusterKey(), profile.turns(), body, n > 0,
                     n > 0 ? "已写入 SHADOW" : "已存在，跳过"));
         }
 

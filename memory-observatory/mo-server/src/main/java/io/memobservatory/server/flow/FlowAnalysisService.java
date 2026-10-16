@@ -11,6 +11,7 @@
  *******************************************************************************/
 package io.memobservatory.server.flow;
 
+import io.memobservatory.contract.FlowIssuePort;
 import io.memobservatory.server.storage.EventRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,7 +32,7 @@ import java.util.stream.Collectors;
  * 归因用规则引擎（不上 LLM），证据具体到 trace 可回放。
  */
 @Service
-public class FlowAnalysisService {
+public class FlowAnalysisService implements FlowIssuePort {
 
     private final EventRepository repo;
 
@@ -96,6 +97,7 @@ public class FlowAnalysisService {
     }
 
     /** 问题节点卡片：节点 + 命中信号 + 证据（可回放 trace）+ 建议动作。 */
+    @Override
     public Map<String, Object> issues(String agentId, int days, String sessionId) {
         Model m = analyze(agentId, days, sessionId);
         List<Map<String, Object>> cards = new ArrayList<>();

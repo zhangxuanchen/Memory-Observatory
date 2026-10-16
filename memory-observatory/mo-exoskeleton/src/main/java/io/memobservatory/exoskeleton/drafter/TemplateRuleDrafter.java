@@ -2,11 +2,11 @@ package io.memobservatory.exoskeleton.drafter;
 
 import io.memobservatory.exoskeleton.cluster.ShapeBucketer;
 import io.memobservatory.exoskeleton.model.ClusterProfile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 确定性替身撰写器：按簇键查表产出固定文本（设计文档 §4.5 的「lab 实现」）。
@@ -16,13 +16,18 @@ import java.util.Optional;
  * 等机制稳了，换一个 {@link RuleDrafter} 实现即可，取数与闸门都不用动。
  *
  * 表里只写记忆策略（该记什么 / 该忘什么 / 何时读回 / 用哪个工具），不含任何推理步骤（§1.4）。
- * 遇到表里没有的簇键返回 {@link Optional#empty()}——宁可不出规则，也不要出一条编的。
+ * 遇到表里没有的簇键返回 {@link Draft#none}（并说明是「表里没有」）——宁可不出规则，也不要出一条编的。
  *
  * <p>簇键是两维交叉（{@code shape|steps:band}，见 {@link ShapeBucketer}），逐条穷举要 4×4 句。
  * 故拆成两张小表再拼：shape 定「这一轮的记忆用法」，steps 定「力度」。这样每一段都是单独可读、
  * 可争论的，而不是二十条各写各的相似句子。
+ *
+ * <p><b>装配开关</b>：本类在 {@code mo.exoskeleton.drafter.mode} 为 {@code template} <b>或未配</b>时生效；
+ * 配成 {@code llm} 时让位给 {@link LlmRuleDrafter}——二者由 {@code @ConditionalOnProperty} 二选一，
+ * 保证注入点永远只有一个 {@link RuleDrafter} bean。默认替身，是因为它零密钥、可复现。
  */
 @Component
+@ConditionalOnProperty(name = "mo.exoskeleton.drafter.mode", havingValue = "template", matchIfMissing = true)
 public class TemplateRuleDrafter implements RuleDrafter {
 
     private static final String SEP = "|steps:";
@@ -34,21 +39,22 @@ public class TemplateRuleDrafter implements RuleDrafter {
     private static final Map<String, String> BY_STEPS = buildBySteps();
 
     @Override
-    public Optional<String> draft(ClusterProfile profile) {
+    public Draft draft(ClusterProfile profile) {
         if (profile == null || profile.clusterKey() == null) {
-            return Optional.empty();
+            return Draft.none("画像为空");
         }
         String key = profile.clusterKey();
         int sep = key.indexOf(SEP);
         if (sep <= 0) {
-            return Optional.empty();
+            return Draft.none("簇键不合口径（期望 shape|steps:band）");
         }
         String usage = BY_SHAPE.get(key.substring(0, sep));
         String effort = BY_STEPS.get(key.substring(sep + SEP.length()));
         if (usage == null || effort == null) {
-            return Optional.empty();
+            // unknown 形状刻意不在表里：老数据该不该出规则存疑，宁缺勿编——如实说明「表里没有」
+            return Draft.none("替身查表无该簇（shape 或 steps 档不在表里；unknown 形状刻意不出）");
         }
-        return Optional.of(usage + "；" + effort);
+        return Draft.of(usage + "；" + effort);
     }
 
     private static Map<String, String> buildByShape() {

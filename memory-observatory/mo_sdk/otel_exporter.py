@@ -7,7 +7,7 @@ Memory Observatory SDK - OpenTelemetry Exporter
 标准已定义的属性用标准名，标准未覆盖的扩展属性用 memory.* 命名空间。
 
 设计要点（见 MVP 设计文档 §3 与 §9 修订 1）：
-- 操作归一化：store/retrieve/forget/consolidate → READ/WRITE/UPDATE/EXPIRE
+- 操作归一化：store/retrieve/forget/consolidate/delete/compact → READ/WRITE/UPDATE/EXPIRE
 - 旁路容错：任何异常只记 WARN 不抛出，不影响 Agent 主流程
 - 零外部依赖：优先 httpx，回退 urllib
 """
@@ -25,28 +25,40 @@ from .exporter import BaseExporter
 logger = logging.getLogger(__name__)
 
 
-# 操作归一化映射：Python 原始操作 → P0 四种语义
+# 操作归一化映射：Python 原始操作 → P0 四种语义。
+# 归一表是跨语言契约（R7）：唯一真相源为仓库根 contract/vocabulary.json 的
+# operation_aliases / operation_default；本表是它在本包里的第二份拷贝，
+# 由 mo_ingest/tests/test_contract.py 的 VocabularyJsonTest 机器校验。
 _OP_MAP = {
     "store": "WRITE",
+    "add": "WRITE",
     "retrieve": "READ",
     "forget": "EXPIRE",
+    "delete": "EXPIRE",
     "consolidate": "UPDATE",
+    "compact": "UPDATE",
 }
+_VALID_OPS = ("READ", "WRITE", "UPDATE", "EXPIRE")
+_DEFAULT_OP = "WRITE"
 
 
 def _normalize_op(event_dict: dict) -> str:
     """根据 operation 和 metadata.is_update 归一化为 READ/WRITE/UPDATE/EXPIRE。
 
     store 且 metadata.is_update=True → UPDATE；store 否则 → WRITE；
-    其余按 _OP_MAP 映射。
+    其余按 _OP_MAP 映射，未命中回落 _DEFAULT_OP（不再原样回吐非法值——
+    旧实现 ``raw.upper()`` 会产出 "COMPACT" / "DELETE" 这类非 canonical 串）。
     """
-    raw = (event_dict.get("operation") or "").lower()
-    if raw == "store":
+    raw = (event_dict.get("operation") or "").strip()
+    low = raw.lower()
+    if low == "store":
         meta = event_dict.get("metadata") or {}
         if meta.get("is_update"):
             return "UPDATE"
         return "WRITE"
-    return _OP_MAP.get(raw, raw.upper())
+    if raw.upper() in _VALID_OPS:
+        return raw.upper()
+    return _OP_MAP.get(low, _DEFAULT_OP)
 
 
 def _trace_id() -> str:

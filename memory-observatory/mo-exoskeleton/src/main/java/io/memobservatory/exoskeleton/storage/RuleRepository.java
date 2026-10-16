@@ -102,8 +102,9 @@ public class RuleRepository {
     // ------------------------------------------------------------------
     private static final String SQL_SUPPORT = """
             SELECT %s  AS io_kinds,
-                   cardinality(action_seq) AS steps
-            FROM memory_turns
+                   cardinality(t.action_seq) AS steps
+            FROM memory_turns t
+            LEFT JOIN memory_turn_criteria c ON c.turn_id = t.turn_id
             %s
             """;
 
@@ -125,7 +126,7 @@ public class RuleRepository {
         }
         String filter = taskTypeFilter == null ? "" : taskTypeFilter.strip();
         String sql = SQL_SUPPORT.formatted(ShapeBucketer.SQL_IO_KINDS,
-                filter.isEmpty() ? "" : "WHERE task_type = ?");
+                filter.isEmpty() ? "" : "WHERE c.task_type = ?");
         RowCallbackHandler count = rs -> {
             Object steps = rs.getObject("steps");
             Set<String> kinds = ShapeBucketer.kindsOf(rs.getArray("io_kinds"));
@@ -152,11 +153,12 @@ public class RuleRepository {
     // trusted_turns 与判据侧的 TRUSTED_SOURCE 同口径：导入路径是代理口径，只作参考（附录 B5.1）。
     // ------------------------------------------------------------------
     private static final String SQL_TASK_TYPES = """
-            SELECT COALESCE(task_type, '__unclassified__') AS task_type,
-                   COUNT(DISTINCT session_id)              AS sessions,
-                   COUNT(*)                                AS turns,
-                   COUNT(*) FILTER (WHERE source <> 'import') AS trusted_turns
-            FROM memory_turns
+            SELECT COALESCE(c.task_type, '__unclassified__') AS task_type,
+                   COUNT(DISTINCT t.session_id)              AS sessions,
+                   COUNT(*)                                  AS turns,
+                   COUNT(*) FILTER (WHERE t.source <> 'import') AS trusted_turns
+            FROM memory_turns t
+            LEFT JOIN memory_turn_criteria c ON c.turn_id = t.turn_id
             GROUP BY 1
             ORDER BY 3 DESC
             """;
@@ -200,12 +202,60 @@ public class RuleRepository {
     // ------------------------------------------------------------------
     public List<ClusterProfile> draftCandidates() {
         Set<String> taken = new HashSet<>(jdbc.queryForList("SELECT cluster_key FROM memory_rules", String.class));
-        List<ClusterProfile> out = new ArrayList<>();
+        List<RulesReport.SupportBucket> ready = new ArrayList<>();
         for (RulesReport.SupportBucket bucket : support()) {
             if (bucket.supported() && !taken.contains(bucket.key())) {
-                out.add(new ClusterProfile(bucket.key(), bucket.turns()));
+                ready.add(bucket);
             }
         }
+        if (ready.isEmpty()) {
+            return List.of();   // 没有候选就不去取样本：不给生产白加一次全表扫
+        }
+        Map<String, List<String>> samples = samplesByBucket();
+        List<ClusterProfile> out = new ArrayList<>(ready.size());
+        for (RulesReport.SupportBucket bucket : ready) {
+            out.add(new ClusterProfile(bucket.key(), bucket.turns(),
+                    samples.getOrDefault(bucket.key(), List.of())));
+        }
+        return out;
+    }
+
+    /** 每个簇最多送几条样本进画像（B20.2）：样本只用来看出「这一簇在干什么」，多了反而稀释信号。 */
+    private static final int SAMPLES_PER_BUCKET = 8;
+
+    /** 单条样本的字符上限。{@code memory_turns.user_text} 写入侧已截到 500，这里再收到 120——样本给的是「像什么」。 */
+    private static final int SAMPLE_MAX_CHARS = 120;
+
+    private static final String SQL_SAMPLES = """
+            SELECT %s  AS io_kinds,
+                   cardinality(action_seq) AS steps,
+                   btrim(user_text) AS user_text
+            FROM memory_turns
+            WHERE user_text IS NOT NULL AND btrim(user_text) <> ''
+            ORDER BY started_at DESC NULLS LAST
+            """;
+
+    /**
+     * 按簇取代表性样本（B20.2）：最近 {@value #SAMPLES_PER_BUCKET} 条非空提问，单条截到 {@value #SAMPLE_MAX_CHARS} 字。
+     *
+     * <p>分桶刻意在 Java 里做、用同一个 {@link ShapeBucketer}，**不把口径抄进 SQL**——
+     * {@link #support()} 就是这么算的，两处同源才保证「样本所属的簇」与「支撑度所属的簇」是同一个簇。
+     */
+    private Map<String, List<String>> samplesByBucket() {
+        Map<String, List<String>> out = new LinkedHashMap<>();
+        String sql = SQL_SAMPLES.formatted(ShapeBucketer.SQL_IO_KINDS);
+        jdbc.query(sql, rs -> {
+            Object steps = rs.getObject("steps");
+            Set<String> kinds = ShapeBucketer.kindsOf(rs.getArray("io_kinds"));
+            String key = ShapeBucketer.bucketKey(new ShapeBucketer.TurnFeatures(
+                    kinds, steps == null ? null : ((Number) steps).longValue()));
+            List<String> got = out.computeIfAbsent(key, k -> new ArrayList<>());
+            if (got.size() >= SAMPLES_PER_BUCKET) {
+                return;   // 该簇够了就不再收
+            }
+            String text = rs.getString("user_text");
+            got.add(text.length() > SAMPLE_MAX_CHARS ? text.substring(0, SAMPLE_MAX_CHARS) : text);
+        });
         return out;
     }
 

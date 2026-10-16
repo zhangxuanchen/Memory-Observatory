@@ -23,6 +23,24 @@
     </properties>
 
     <dependencies>
+        <!-- 共享支撑模块：只用 support.security.ApiKeyAuthFilter（与 mo-server 同一份鉴权实现）。
+             排除 Excel 栈（POI/commons-io）——外骨骼不碰导出导入，不把百 MB 级依赖拖进镜像；
+             support 的其余组件在 io.memobservatory.support 包，不在本应用扫描路径内，不会被动装配。 -->
+        <dependency>
+            <groupId>io.memobservatory</groupId>
+            <artifactId>mo-support</artifactId>
+            <version>0.1.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.apache.poi</groupId>
+                    <artifactId>*</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>commons-io</groupId>
+                    <artifactId>commons-io</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

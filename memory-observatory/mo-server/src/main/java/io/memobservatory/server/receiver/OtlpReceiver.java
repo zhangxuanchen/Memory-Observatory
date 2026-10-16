@@ -1,6 +1,6 @@
 package io.memobservatory.server.receiver;
 
-import io.memobservatory.server.ingest.IngestQueue;
+import io.memobservatory.server.collect.IngestQueue;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;

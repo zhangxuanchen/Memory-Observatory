@@ -1,0 +1,14 @@
+# token-usage-assistant (SwiftPM) 本地产物，不进仓库
+
+# SwiftPM 构建产物（体积大，267MB+）
+.build/
+.swiftpm/
+Packages/
+Package.resolved
+
+# Python 适配器缓存
+__pycache__/
+*.py[cod]
+
+# 系统
+.DS_Store

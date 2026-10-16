@@ -2,8 +2,8 @@ package io.memobservatory.server.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.JsonNode;
-import io.memobservatory.agentloop.workbench.core.AgentProperties;
-import io.memobservatory.agentloop.workbench.core.GlobalKeyStore;
+import io.memobservatory.contract.GlobalKeyPort;
+import io.memobservatory.contract.LlmCredentialPort;
 import io.memobservatory.server.api.dto.CreateEventDTO;
 import io.memobservatory.server.model.MemoryEvent;
 import io.memobservatory.server.model.MemoryOp;
@@ -52,7 +52,10 @@ public class WriteController {
     private EventRepository repo;
 
     @Autowired
-    private AgentProperties agentProps;
+    private LlmCredentialPort llmCredentials;
+
+    @Autowired
+    private GlobalKeyPort globalKeys;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -289,14 +292,14 @@ public class WriteController {
 
     /** 大模型抽取：把日志文本喂给 dashscope 文本对话模型，要求只输出 memory_events JSON 数组。 */
     private List<Map<String, Object>> llmExtractRows(String content) throws Exception {
-        // 取钥优先级：界面配置（GlobalKeyStore）→ 环境变量/兜底文件（props）
-        String key = GlobalKeyStore.plain("dashscope");
-        if (key == null || key.isBlank()) key = agentProps.getDashscopeApiKey();
+        // 取钥优先级：界面配置（GlobalKeyPort）→ 环境变量/兜底文件（LlmCredentialPort）
+        String key = globalKeys.plain("dashscope");
+        if (key == null || key.isBlank()) key = llmCredentials.getDashscopeApiKey();
         if (key == null || key.isBlank()) {
             throw new IllegalStateException("未配置大模型 API Key（DashScope），无法用大模型格式化；"
                     + "可在工作区侧边栏「模型密钥」中配置，或在 .env 设置 DASHSCOPE_API_KEY");
         }
-        String model = agentProps.getDashscopeModel();
+        String model = llmCredentials.getDashscopeModel();
         String sys = "你是 Memory Observatory 的数据导入解析器。请阅读下方 Agent 运行日志，把其中每一个“记忆事件”抽取成一条 JSON 对象，"
                 + "最后仅输出一个 JSON 数组（不要任何说明文字、注释或 markdown 代码块标记）。"
                 + "每条对象字段（键全小写）："

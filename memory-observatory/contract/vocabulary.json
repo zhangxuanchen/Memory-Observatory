@@ -1,0 +1,48 @@
+{
+  "_comment": "跨语言/跨模块契约的唯一真相（单一真相源）。Java 侧由 mo-server 的 ContractVocabularyTest 校验，mo-exoskeleton 的 ShapeBucketer 词表由同模块的 ShapeBucketerVocabularyTest 校验，Python 侧由 mo_ingest/tests/test_contract.py 的 VocabularyJsonTest 校验。任一侧的常量漂移，对应测试立即变红——这就是本文件存在的唯一目的：把「逐字一致」从注释里的承诺变成机器可验的事实。",
+  "_readme": {
+    "为什么放在仓库根": "三侧（mo-server / mo-exoskeleton / mo_ingest）都要读同一份，不能各自拷一份，否则又变成多个真相源。",
+    "改这里的步骤": "改完必须同时改各侧常量，并跑 mvn -pl mo-server test、mvn -pl mo-exoskeleton test 与 python3 -m unittest mo_ingest.tests.test_contract。"
+  },
+
+  "io_kind_vocabulary": [
+    "file_read",
+    "content_search",
+    "memory_read",
+    "file_write",
+    "memory_write",
+    "tool_other",
+    "model_call",
+    "lifecycle"
+  ],
+  "io_kind_lifecycle": "lifecycle",
+
+  "io_kind_read": [
+    "file_read",
+    "content_search",
+    "memory_read"
+  ],
+  "io_kind_write": [
+    "file_write",
+    "memory_write"
+  ],
+
+  "operation_canonical": [
+    "READ",
+    "WRITE",
+    "UPDATE",
+    "EXPIRE"
+  ],
+
+  "_operation_note": "operation 归一表（R7 单一真相源）。原始值 → 归一值；未命中且非 canonical 的一律回落 operation_default。三侧必须逐字一致：Java MemoryOp.of、mo_ingest/contract.py:normalize_operation、mo_sdk/otel_exporter.py:_normalize_op。",
+  "operation_default": "WRITE",
+  "operation_aliases": {
+    "store": "WRITE",
+    "add": "WRITE",
+    "retrieve": "READ",
+    "forget": "EXPIRE",
+    "delete": "EXPIRE",
+    "consolidate": "UPDATE",
+    "compact": "UPDATE"
+  }
+}

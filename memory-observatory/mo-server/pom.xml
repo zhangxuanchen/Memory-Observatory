@@ -27,6 +27,23 @@
     </properties>
 
     <dependencies>
+        <!-- M3 拆模块：mo-server 依赖中立契约（叶子）与工作台模块；
+             二者均不反向依赖 mo-server，依赖方向为单向（架构守则 S2）。 -->
+        <dependency>
+            <groupId>io.memobservatory</groupId>
+            <artifactId>mo-contract</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.memobservatory</groupId>
+            <artifactId>mo-workbench</artifactId>
+            <version>0.1.0</version>
+        </dependency>
+        <dependency>
+            <groupId>io.memobservatory</groupId>
+            <artifactId>mo-support</artifactId>
+            <version>0.1.0</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>

@@ -166,7 +166,7 @@ public record RulesReport(
     ) {
     }
 
-    /** 单个簇的起草结果。body 为 null 表示撰写器对该簇没有对应策略（不编）。 */
+    /** 单个簇的起草结果。body 为 null 时，{@code detail} 为撰写器给出的「为什么没产出」（不编）。 */
     public record DraftOutcome(
             String clusterKey,
             long turns,

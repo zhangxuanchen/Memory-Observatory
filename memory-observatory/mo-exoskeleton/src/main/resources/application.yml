@@ -21,12 +21,22 @@ spring:
 
 # 记忆外骨骼（L6 能学）参数。默认值即设计文档的起点值（§2.4 / §2.7 / §3.2）。
 mo:
+  auth:
+    # 接口鉴权：与 mo-server 同一把 key、同一语义——配置后 /api/** 强制校验
+    # Authorization: Bearer <key>（或 X-API-Key）；留空 = 开放模式（仅启动 WARN）。
+    # 调用方：mo-server 的 ExoskeletonProxyController 透传浏览器请求的 Authorization；
+    # 本机 curl 调试时手动带 -H "Authorization: Bearer $MO_API_KEY"。
+    api-key: ${MO_API_KEY:}
   exoskeleton:
     min-support: 30                    # §3.2 最小支撑度：低于它不进候选，只算「不支持」
     churn-weeks: 4                     # §2.7 churn 观察窗（周）
     correction-window-minutes: 10      # §2.4 隐式纠正：相邻 turn 的间隔窗口（分钟）
     correction-similarity: 0.75        # §2.4 隐式纠正：n-gram Jaccard 阈值
     holdout-ratio: 0.2                 # §2.5 对照组裸跑比例（0.1–0.2 起点值；lab05 取 0.25）
+    drafter:                           # §4.5 规则撰写器：由谁写草稿（只写不生效）
+      # template = 确定性替身（按簇键查表，零密钥、可复现）；llm = 真 LLM 撰写器（复用 tasks.llm 通道）。
+      # 二者由 @ConditionalOnProperty 二选一，注入点永远只有一个 RuleDrafter bean。默认替身。
+      mode: ${MO_DRAFTER_MODE:template}
     audit:                             # §2.6 自动降级 / §2.7 churn：三道限制 + 调度
       enabled: false                   # 默认关：没配就不跑（§4.7「不能默认给生产加负载」）
       initial-delay-minutes: 1
@@ -57,6 +67,11 @@ mo:
         # Ollama 的 OpenAI 兼容端点用请求体里的 reasoning_effort 控制，取值 none/low/medium/high；
         # 空 = 不发这个字段（非思考模型无需关，发了反而可能报错）。
         reasoning-effort: ${LLM_REASONING_EFFORT:none}
+        # 瞬时失败（IOException / 连接或读超时 / HTTP 5xx）最多重试几次，不含首次；4xx 不重试。
+        # 不配也能跑：默认 2 次。
+        max-retries: 2
+        # 首次重试前的退避毫秒；之后按 ×3 递增（默认 500ms → 500ms、1500ms）。
+        retry-backoff-ms: 500
     skills:                            # 技能发现：按任务类型从对话里提炼可复用的工作台技能
       enabled: true
       # 样本门槛：该类 turn 数低于它就不提炼，清单里显示为「未达标」。
@@ -66,4 +81,31 @@ mo:
       max-classes-per-run: 8
       # 该类对话摘要送模型的字符上限（超了按 turn 均匀抽样，首尾必取）。
       digest-max-chars: 20000
+      # 取原文时在 SQL 层的抽样上限（每类最多取几条 turn 进摘要）。默认 0 = 不抽样，取全量（行为与从前一致）。
+      # 调大只是「少读一点、跑快一点」，但会**改变证据集**（进而改指纹、触发一轮重提炼）——故默认关着，
+      # 只在看板卡顿、且能接受重提炼时才显式打开（见登记口 B21）。
+      sample-turns: 0
+      # 提炼并发度：同时有几类在跑 LLM。默认 1 = 逐类串行（行为与从前一致）；
+      # 调大只是缩短墙钟时间，不改变任何判据（类与类互不依赖）。注意模型侧并发压力。
+      parallelism: 1
+      # ---- 单轮稳定性预算 + 熔断（P2）----
+      # 三项默认 0 = 不启用，行为与从前完全一致；命中即「类间」提前停下（调用一旦发出无法中途打断），
+      # 返回已完成的局部结果；剩余类下一轮继续（断点续跑靠 class_runs 记账，劳动不丢）；
+      # 落库终态记为 HALTED（区别于人取消的 CANCELLED）。
+      # 单轮总墙钟时长预算（毫秒）：一轮累计耗时达到它就停下。0 = 不限。
+      budget-ms: 0
+      # 单轮总 token 预算：一轮累计 token（各次成功调用的 total_tokens 之和）达到它就停下。
+      # 比「类数上限」更贴成本——各类摘要长度差几十倍，按类数封顶仍可能一次烧很多。0 = 不限。
+      budget-tokens: 0
+      # 熔断：LLM 连续失败达到它，即停发后续调用（成功一次清零；跳过 / 空类不改变计数），
+      # 防「模型侧持续故障还一路空烧」。已失败的类下轮重试（FAILED 不参与跳过）。0 = 关闭。
+      breaker-max-failures: 0
       # 复用 mo.exoskeleton.tasks.llm.* 的 LLM 通道；未配置时本能力如实报未启用，不阻塞。
+      gate:                            # 效果验证闸门：采纳前 vs 采纳后对照
+        # 每组（前 / 后）的最小样本量：低于它则该组判不了，如实报「不可测」。
+        # 与 min-turns(30) / min-support(30) 同一精神——几条对话里看不出「有没有变好」。
+        min-sample: 30
+        # 比率类判据（纠正率 / 失败率）的绝对容忍（百分点）：采纳后高 5 个百分点以内仍算持平。
+        rate-tolerance: 0.05
+        # 回合数判据的相对容忍：采纳后多 10% 以内仍算持平。
+        rounds-tolerance: 0.10

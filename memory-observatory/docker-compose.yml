@@ -41,7 +41,11 @@ services:
       start_period: 600s
 
   mo-server:
-    build: ./mo-server
+    # M3（步骤 13）：mo-server 依赖同仓模块 mo-contract / mo-workbench，
+    # 故构建上下文为仓库根（与 mo-dashboard 同），Dockerfile 用 -pl mo-server -am 连带构建。
+    build:
+      context: .
+      dockerfile: mo-server/Dockerfile
     restart: unless-stopped
     # 仅 OTLP(4318) 直连容器 8080（SDK/上报脚本自带鉴权头）；REST 与页面统一由
     # mo-dashboard 的 nginx 代理（8080 明文 / 5173 HTTPS，自动注入 MO_API_KEY），
@@ -109,7 +113,10 @@ services:
   # 「观测 → 记忆提炼」页即无需任何手动启动步骤——原先靠宿主机手动 `mvn spring-boot:run`，
   # 重启项目后它不会自动回来，页面就报「不可达」。
   mo-exoskeleton:
-    build: ./mo-exoskeleton
+    # 依赖 mo-support（共用 ApiKeyAuthFilter）后构建上下文移到仓库根，与 mo-server 同构
+    build:
+      context: .
+      dockerfile: mo-exoskeleton/Dockerfile
     restart: unless-stopped
     # 仅绑本机回环：容器之间走服务名 mo-exoskeleton:8081；这个映射只为方便本机直接 curl 调试
     ports: ["127.0.0.1:8081:8081"]
@@ -117,6 +124,9 @@ services:
       MO_DB_URL: jdbc:postgresql://postgres:5432/mo
       MO_DB_USER: ${MO_DB_USER:-mo}
       MO_DB_PASSWORD: ${MO_DB_PASSWORD:-mo}
+      # 接口鉴权：与 mo-server 同一把 key、同一开关语义（空=开放+WARN）。
+      # 调用链：浏览器→nginx 注入→mo-server 校验→转发层透传到这里；本机 curl 手动带。
+      MO_API_KEY: ${MO_API_KEY:-}
       # LLM 只有「任务类型分类」（POST /tasks/classify，手动触发）用得到；留空即该端点如实报
       # 未启用，不影响出卡与作答。与 mo-server 同一约定：容器内经 host.docker.internal 访问
       # 本机 Ollama——在 .env 里设
@@ -127,6 +137,11 @@ services:
       LLM_MODEL: ${LLM_MODEL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_REASONING_EFFORT: ${LLM_REASONING_EFFORT:-none}
+      # 规则撰写器（§4.5）：template = 确定性替身（默认）/ llm = 真 LLM（复用上面这条 LLM 通道）。
+      # 与 application.yml 的 ${MO_DRAFTER_MODE:template} 同口径——不设即替身，故「默认替身」这条纪律
+      # 不因透传而改变；要在容器内跑真撰写器时，在 .env 里设 MO_DRAFTER_MODE=llm 即可，无需改 compose
+      # 或走 docker compose run -e（登记口 B20.5）。
+      MO_DRAFTER_MODE: ${MO_DRAFTER_MODE:-template}
     depends_on:
       postgres:
         condition: service_healthy

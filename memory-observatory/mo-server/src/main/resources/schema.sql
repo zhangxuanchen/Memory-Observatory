@@ -116,6 +116,24 @@ CREATE TABLE IF NOT EXISTS alert_notifications (
 CREATE INDEX IF NOT EXISTS idx_an_status ON alert_notifications(status, last_seen_at);
 CREATE INDEX IF NOT EXISTS idx_an_agent  ON alert_notifications(agent_id, last_seen_at);
 
+-- 接入来源家族清单（统一接入层 mo_ingest 的服务端归类）
+-- 把「某 source 归到哪个家族」从 Java 硬编码挪到一张可运行时增行的表：
+-- 新增平台只需 INSERT 一行（source, family），不必改 Java、不必重建镜像——
+-- 因此也不能放 application.yml（它在 jar 内，改它必须重建镜像）。
+-- family 取值：import | hook | workbench | otlp（下游按四类消费，保持兼容）。
+CREATE TABLE IF NOT EXISTS event_source_family (
+    source      TEXT PRIMARY KEY,
+    family      TEXT NOT NULL,
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO event_source_family(source, family) VALUES
+    ('import', 'import'),
+    ('trae_importer', 'import'),
+    ('workbuddy_importer', 'import'),
+    ('qoder_hook', 'hook'),
+    ('trae_hook', 'hook')
+ON CONFLICT (source) DO NOTHING;
+
 -- turn 特征物化表：分类器的输入面（《分类记忆体：设计与实现》§4.2 零期）
 -- 为什么要单独一张表：turn_* 只在工作台路径产生，且 memory_events 上没有 metadata 的 GIN 索引，
 -- 按 jsonb 现算特征等于每次全表扫。把 turn 级特征一次性算好落在这张表上，之后所有分析都查它。
@@ -135,15 +153,68 @@ CREATE TABLE IF NOT EXISTS memory_turns (
     token_total  BIGINT,
     latency_ms   BIGINT,
     outcome      TEXT,                             -- metadata.turn_outcome
-    corrected    BOOLEAN NOT NULL DEFAULT FALSE,   -- 隐式纠正：下一 turn 近似重复
-    source       TEXT NOT NULL,                    -- workbench | otlp | import
+    source       TEXT NOT NULL,                    -- workbench | otlp | import | hook（家族，来自 event_source_family）
+    platform     TEXT,                             -- 平台原始 source 值（qoder_hook / trae_importer / …），供按平台切分
     started_at   TIMESTAMPTZ
 );
 CREATE INDEX IF NOT EXISTS idx_mt_agent_ts ON memory_turns (agent_id, started_at);
 
--- 在线升级列（防止已经跑过旧 schema 的库缺列）。io_kind_mix 由 TurnMaterializer 物化，
--- 与 corrected / is_holdout 不同：那两列是判据侧回写、物化不碰；这一列是物化自己的产物。
+-- 在线升级列（防止已经跑过旧 schema 的库缺列）。io_kind_mix / platform 都是物化自己的产物
+-- （由 TurnMaterializer 写），与判据列无关——判据列已于步骤 15 迁出本表（见下）。
 ALTER TABLE memory_turns ADD COLUMN IF NOT EXISTS io_kind_mix JSONB;
+-- platform：把平台名落到分析入口表，按平台分析不必回 join memory_events。
+ALTER TABLE memory_turns ADD COLUMN IF NOT EXISTS platform TEXT;
+
+-- ---------------------------------------------------------------------------
+-- 判据列已迁出本表（架构重构 M3 / 步骤 15，治 R2：memory_turns 双写）
+--
+-- 原先 is_holdout / corrected / task_type / task_note / task_type_version / classified_at /
+-- task_judge_mode / task_judge_votes 这 8 列挂在 memory_turns 上、由判据侧（mo-exoskeleton）UPDATE，
+-- 使本表有两个 writer。步骤 15 把它们迁到外骨骼自己的表 memory_turn_criteria（以 turn_id 关联），
+-- 本表从此**彻底单写**：只有 TurnMaterializer 写它（见 turn/TurnMaterializer.java）。
+--
+-- 因此这里不再 CREATE / ALTER 这些列。对**既有库**，这 8 列仍物理存在（CREATE TABLE IF NOT EXISTS
+-- 不会删列），由迁移脚本 scripts/migrate-criteria-out-of-turns.sql 负责回填并删列；
+-- 回滚脚本 scripts/rollback-criteria-to-turns.sql 负责反向恢复。不能用 schema.sql 做 DROP——
+-- 那会在每次启动时执行一次破坏性操作。详见《架构重构-增量与目标蓝图》§6.3 步骤 15。
+--
+-- 组合索引 idx_mt_agent_task (agent_id, task_type) 随之失效（task_type 已不在本表），
+-- 由迁移脚本删除；按类取原文改走 memory_turn_criteria(task_type) 的索引。
+-- ---------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------
+-- 技能装载回流（P0-1）：记录「哪个 Agent 在装配时装载了哪个已采纳技能」
+--
+-- 本表迁定 owner 为 **mo-server**（架构重构 M3 / 步骤 15）：装载事实只产生在 mo-server
+-- （只有它读技能库并装配 Agent），写入走 SkillLoadRepository；外骨骼只读。原先它的 DDL 挂在外骨骼
+-- 的 schema.sql、却由 mo-server 直写——「建表方 ≠ 写入方」，正是表所有权矩阵（蓝图 §4.4）要消除的。
+-- 故把 DDL 收敛到唯一的 writer 名下。
+--
+-- 一格一「Agent × 技能」（PRIMARY KEY）：同一对反复装载只累加计数与刷新时间，不插多行。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS memory_skill_loads (
+    agent_id        TEXT   NOT NULL,
+    skill_id        TEXT   NOT NULL,
+    workspace_id    TEXT,
+    load_count      BIGINT NOT NULL DEFAULT 0,
+    first_loaded_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_loaded_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_session_id TEXT,
+    PRIMARY KEY (agent_id, skill_id)
+);
+CREATE INDEX IF NOT EXISTS idx_msl_skill ON memory_skill_loads(skill_id);
+
+-- ---------------------------------------------------------------------------
+-- 物化水位持久化（owner=mo-server，唯一写者 TurnMaterializer）：
+-- 重启后从库里接水位，不再 EPOCH 全量回看（架构审视弱点 5，2026-10-12）。
+-- 水位只是提示不是真相：漏推进/晚到行都由「候选 turn 全量重聚合 + turn_id 幂等
+-- upsert」兑底，重跑结果一致。pipeline 主键预留多条物化线（目前仅 turns）。
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS memory_materialize_watermark (
+    pipeline     TEXT PRIMARY KEY,
+    watermark_ts TIMESTAMPTZ NOT NULL,
+    updated_ts   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 
 -- pg_trgm 服务相似度匹配（§4.2.1：优先于 pgvector——不需要外部调用、有索引、现在就能用）。
 -- 缺扩展时降级而不是启动失败：普通 PG 无该扩展会 ERROR 并 abort 事务，故放进 DO 块的 EXCEPTION 里吞掉。

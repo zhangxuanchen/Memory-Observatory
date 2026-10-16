@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.1</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>io.memobservatory</groupId>
+    <artifactId>mo-contract</artifactId>
+    <version>0.1.0</version>
+    <name>Memory Observatory Contract</name>
+    <description>中立契约（依赖倒置的叶子）：端口接口与契约键名，只依赖 JDK，无 Spring 实现依赖</description>
+
+    <properties>
+        <java.version>17</java.version>
+        <maven.compiler.release>17</maven.compiler.release>
+    </properties>
+
+    <!-- 刻意不声明任何依赖：contract 必须是叶子（架构守则 S2 纯度）。
+         需要某类型时把该类型上移到契约，或改用更窄的接口。 -->
+</project>

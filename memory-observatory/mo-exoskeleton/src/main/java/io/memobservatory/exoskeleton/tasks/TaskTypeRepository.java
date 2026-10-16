@@ -40,28 +40,29 @@ public class TaskTypeRepository {
     }
 
     private static final String SQL_COLUMNS = """
-            SELECT session_id,
-                   MAX(agent_id) AS agent_id,
-                   MAX(source)   AS source,
-                   COUNT(*)      AS turns,
-                   array_agg(user_text ORDER BY started_at NULLS LAST, turn_id) AS turn_texts
-            FROM memory_turns
-            WHERE user_text IS NOT NULL AND btrim(user_text) <> ''
-            GROUP BY session_id
+            SELECT t.session_id,
+                   MAX(t.agent_id) AS agent_id,
+                   MAX(t.source)   AS source,
+                   COUNT(*)        AS turns,
+                   array_agg(t.user_text ORDER BY t.started_at NULLS LAST, t.turn_id) AS turn_texts
+            FROM memory_turns t
+            LEFT JOIN memory_turn_criteria c ON c.turn_id = t.turn_id
+            WHERE t.user_text IS NOT NULL AND btrim(t.user_text) <> ''
+            GROUP BY t.session_id
             """;
 
     /** 增量口径：只取「还有 turn 未分类」的 session。 */
     private static final String SQL_PENDING = SQL_COLUMNS
             + """
-            HAVING COUNT(*) FILTER (WHERE task_type IS NULL) > 0
-            ORDER BY MAX(started_at) DESC NULLS LAST
+            HAVING COUNT(*) FILTER (WHERE c.task_type IS NULL) > 0
+            ORDER BY MAX(t.started_at) DESC NULLS LAST
             LIMIT ?
             """;
 
     /** 强制口径（force）：无视已有分类，全部 session 重判并覆盖。 */
     private static final String SQL_FORCE = SQL_COLUMNS
             + """
-            ORDER BY MAX(started_at) DESC NULLS LAST
+            ORDER BY MAX(t.started_at) DESC NULLS LAST
             LIMIT ?
             """;
 
@@ -105,13 +106,60 @@ public class TaskTypeRepository {
         }
     }
 
-    /** 回写整个 session：该 session 的所有 turn 共享同一个 task_type / task_note（session 粒度）。 */
+    /**
+     * 回写整个 session：该 session 的所有 turn 共享同一个 task_type / task_note（session 粒度）。
+     *
+     * <p><b>三列一起写</b>：{@code task_type} 之外，同时落 {@code task_type_version}
+     * （{@link TaskType#TAXONOMY_VERSION}）与 {@code classified_at = now()}——不写版本就无法区分
+     * 新旧判据的产物。人工纠正另把 {@code task_judge_mode} 写成 {@code 'human'}、票型置 NULL：
+     * 人手改过的标签不该再挂着上一轮 LLM 的票型（对照 {@link #SQL_WRITE_JUDGED}）。
+     *
+     * <p><b>判据列已迁出 memory_turns</b>（架构重构 M3 / 步骤 15）：这里写的是本模块自建的
+     * {@code memory_turn_criteria}，{@code turn_id / session_id} 由 {@code memory_turns} 带出——
+     * 读 memory_turns 是允许的（owner 建表），但本模块不再写它的任何列。
+     */
     private static final String SQL_WRITE = """
-            UPDATE memory_turns SET task_type = ?, task_note = ? WHERE session_id = ?
+            INSERT INTO memory_turn_criteria
+                (turn_id, session_id, task_type, task_note, task_type_version, classified_at, task_judge_mode, task_judge_votes)
+            SELECT t.turn_id, t.session_id, ?, ?, ?, now(), 'human', NULL
+              FROM memory_turns t
+             WHERE t.session_id = ?
+            ON CONFLICT (turn_id) DO UPDATE SET
+                task_type         = EXCLUDED.task_type,
+                task_note         = EXCLUDED.task_note,
+                task_type_version = EXCLUDED.task_type_version,
+                classified_at     = EXCLUDED.classified_at,
+                task_judge_mode   = EXCLUDED.task_judge_mode,
+                task_judge_votes  = EXCLUDED.task_judge_votes,
+                updated_at        = now()
+            """;
+
+    /**
+     * 分类侧（多评委多数决）的回写：在人工纠正那几列之外，再落这次判定的口径
+     * {@code task_judge_mode}（{@code single} / {@code multi-N}）与票型 {@code task_judge_votes}
+     * （如 {@code fix_bug=2,explain=1}）。
+     *
+     * <p>为什么不与 {@link #SQL_WRITE} 合一：人工纠正没有评委票，两条路径写法本就不同，
+     * 各用各的 SQL 比在一个 SQL 里塞分支更清楚。
+     */
+    private static final String SQL_WRITE_JUDGED = """
+            INSERT INTO memory_turn_criteria
+                (turn_id, session_id, task_type, task_note, task_type_version, classified_at, task_judge_mode, task_judge_votes)
+            SELECT t.turn_id, t.session_id, ?, ?, ?, now(), ?, ?
+              FROM memory_turns t
+             WHERE t.session_id = ?
+            ON CONFLICT (turn_id) DO UPDATE SET
+                task_type         = EXCLUDED.task_type,
+                task_note         = EXCLUDED.task_note,
+                task_type_version = EXCLUDED.task_type_version,
+                classified_at     = EXCLUDED.classified_at,
+                task_judge_mode   = EXCLUDED.task_judge_mode,
+                task_judge_votes  = EXCLUDED.task_judge_votes,
+                updated_at        = now()
             """;
 
     public int writeBack(String sessionId, String taskType, String note) {
-        return jdbc.update(SQL_WRITE, taskType, note, sessionId);
+        return jdbc.update(SQL_WRITE, taskType, note, TaskType.TAXONOMY_VERSION, sessionId);
     }
 
     /** 批量回写（多个 session 一次提交）。 */
@@ -121,10 +169,11 @@ public class TaskTypeRepository {
         }
         List<Object[]> args = new ArrayList<>(tasks.size());
         for (SessionTask t : tasks) {
-            args.add(new Object[]{t.taskType(), t.note(), t.sessionId()});
+            args.add(new Object[]{t.taskType(), t.note(), TaskType.TAXONOMY_VERSION,
+                    t.judgeMode(), t.judgeVotes(), t.sessionId()});
         }
         int sum = 0;
-        for (int a : jdbc.batchUpdate(SQL_WRITE, args)) {
+        for (int a : jdbc.batchUpdate(SQL_WRITE_JUDGED, args)) {
             sum += Math.max(a, 0);
         }
         return sum;
@@ -146,14 +195,30 @@ public class TaskTypeRepository {
             args.add(new Object[]{id});
         }
         int sum = 0;
-        for (int a : jdbc.batchUpdate("UPDATE memory_turns SET task_type = NULL, task_note = NULL"
+        // 只清判据列、**不删行**：本表还挂着 corrected / is_holdout，删行会把它们一并丢掉。
+        for (int a : jdbc.batchUpdate("UPDATE memory_turn_criteria"
+                + " SET task_type = NULL, task_note = NULL, task_type_version = NULL, classified_at = NULL,"
+                + " task_judge_mode = NULL, task_judge_votes = NULL, updated_at = now()"
                 + " WHERE session_id = ?", args)) {
             sum += Math.max(a, 0);
         }
         return sum;
     }
 
-    /** 一条待回写的 session 分类。 */
-    public record SessionTask(String sessionId, String taskType, String note) {
+    /**
+     * 数出「还是旧口径」的 turn：{@code task_type} 有值，但 {@code task_type_version} 为空
+     * 或不是当前 {@code version}。改 prompt / 枚举后，这个数就是待重跑（force 分类）的盘子。
+     */
+    public long countStaleVersion(String version) {
+        Long n = jdbc.queryForObject("SELECT count(*) FROM memory_turns t"
+                + " JOIN memory_turn_criteria c ON c.turn_id = t.turn_id"
+                + " WHERE c.task_type IS NOT NULL AND (c.task_type_version IS NULL OR c.task_type_version <> ?)",
+                Long.class, version);
+        return n == null ? 0L : n;
+    }
+
+    /** 一条待回写的 session 分类（分类侧产物，含判定口径 judgeMode / judgeVotes）。 */
+    public record SessionTask(String sessionId, String taskType, String note,
+                              String judgeMode, String judgeVotes) {
     }
 }

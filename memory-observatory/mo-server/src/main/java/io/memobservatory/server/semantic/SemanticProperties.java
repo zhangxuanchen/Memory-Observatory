@@ -82,6 +82,13 @@ public class SemanticProperties {
     /** 单次判定 HTTP 超时。后端已 preload 时热态仅数百毫秒。 */
     private int timeoutMs = 5000;
 
+    /**
+     * 送检并发上限（十万级压测后加，2026-10-12）：problems 端点曾在 GET 线程里串行
+     * 逐条调 LLM，topN=20 就是 ~10s。现在固定池并行，但 laya 是单进程推理服务，
+     * 池大小即实并发上限，不能把后端打穿。
+     */
+    private int concurrency = 8;
+
     private double thresholdRisk = 0.95;
     private double thresholdProblem = 0.65;
     private double thresholdLoop = 0.75;

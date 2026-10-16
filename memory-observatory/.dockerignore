@@ -1,0 +1,16 @@
+# 仓库根作为构建上下文（mo-server / mo-dashboard）时排除无关内容，避免上下文膨胀。
+# 保留：各模块 pom 与 src、mo-server/settings.xml、mo-server/src/main/resources/static、mo_ingest（一键接入安装源）。
+.git
+.trae
+**/target
+**/node_modules
+**/__pycache__
+**/*.pyc
+.venv
+test-logs
+docs
+learn
+examples
+laya-backend
+mo_sdk
+*.md

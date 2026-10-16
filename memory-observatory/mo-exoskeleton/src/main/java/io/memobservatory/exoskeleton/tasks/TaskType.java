@@ -28,6 +28,16 @@ public enum TaskType {
     DOC_WRITE("doc_write", "文档撰写", "多数提问是撰写 / 修改文字（文档 / 注释 / 说明 / README / 简介 / 文案）；对**文档 / 书籍**做结构调整、格式统一、措辞优化、内容增删**也属此类**（改的是文字）；仅出现「文档」字样不算"),
     OTHER("other", "其他", "各类条数接近、装不进单一类型");
 
+    /**
+     * 分类口径版本：词表取值、判据反例、system prompt 每改一次都必须 +1（{@code taxonomy-v2}、
+     * {@code taxonomy-v3}…）。<b>不同步 +1 就会出现</b>：新旧分类落在同一列 {@code task_type} 里，
+     * 彼此不可比、也无法定向重跑（看不出哪些是旧判据的产物）。
+     *
+     * <p>回写路径把本值连同 {@code classified_at} 一起落到 {@code memory_turns}
+     * （见 {@link TaskTypeRepository}），报表据此能数出「还有多少 turn 是旧口径」。
+     */
+    public static final String TAXONOMY_VERSION = "taxonomy-v1";
+
     private final String value;
     private final String label;
     private final String criterion;
@@ -72,6 +82,28 @@ public enum TaskType {
             }
         }
         return OTHER;
+    }
+
+    /**
+     * 判断一个取值是否落在词表内（{@code value} / 枚举名 / 中文标签皆可）。
+     *
+     * <p><b>为什么单独要这一个，而不复用 {@link #fromOrOther}</b>：{@code fromOrOther} 认不出就
+     * <b>回落 other</b>——那是「读模型输出」的宽容口径（脏值不该让整批失败）。但人工纠正<b>是写</b>，
+     * 把「打错的取值」静默落成 other 等于替人做了他没做的决定，故这里只判「在不在词表里」，
+     * 认不出就由调用方回 400。<b>注意 {@code "other"} 本身是合法取值</b>——它是词表的一员，
+     * 与「认不出的脏值」是两回事。
+     */
+    public static boolean isValidValue(String s) {
+        if (s == null) {
+            return false;
+        }
+        String v = s.strip();
+        for (TaskType t : values()) {
+            if (t.value.equalsIgnoreCase(v) || t.name().equalsIgnoreCase(v) || t.label.equals(v)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** 词表渲染成 prompt 里的选项清单（`value`：标签 —— 判据）。 */

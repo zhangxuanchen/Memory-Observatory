@@ -1,6 +1,7 @@
 package io.memobservatory.server.analytics;
 
-import io.memobservatory.server.semantic.ConfirmKind;
+import io.memobservatory.contract.ConfirmKind;
+import io.memobservatory.contract.ProblemQueryPort;
 import io.memobservatory.server.semantic.SemanticFilterService;
 import io.memobservatory.server.storage.EventRepository;
 import org.springframework.beans.factory.annotation.Value;
@@ -8,10 +9,13 @@ import org.springframework.stereotype.Service;
 
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * 阈值规则问题分析：把「可能问题」的判定从控制器里抽出来，供 REST 页面与告警推送两侧共用。
@@ -23,7 +27,16 @@ import java.util.Map;
  * 与原 {@code ApiController.analyticsProblems} 逐字一致，抽取不改行为。
  */
 @Service
-public class AnalyticsProblemService {
+public class AnalyticsProblemService implements ProblemQueryPort {
+
+    /** 类目级并发发器：IO 阻塞（LLM/DB），任务只提交不占 llm 池——对 laya 的实并发由
+     *  {@link SemanticFilterService} 内部的固定池统一限住；daemon 不阻关机。 */
+    private static final ExecutorService PROBLEM_FILTER_POOL =
+            Executors.newFixedThreadPool(8, r -> {
+                Thread t = new Thread(r, "mo-problem-filter");
+                t.setDaemon(true);
+                return t;
+            });
 
     private final EventRepository repo;
     private final SemanticFilterService semanticFilter;
@@ -88,6 +101,7 @@ public class AnalyticsProblemService {
      * <p>semantic=true 时对每类命中做语义确认，剔除「任务本身就需要这么多资源」这类假阳性
      * （例如「跑测试的 Agent 用了 30s」不是问题，「客服 Agent 用了 30s」才是）。
      */
+    @Override
     public Map<String, Object> problems(int days, String agent, boolean semantic) {
         Instant now = Instant.now();
         Instant from = days > 0 ? now.minusSeconds(days * 86400L) : null;
@@ -181,10 +195,15 @@ public class AnalyticsProblemService {
      * <p>命中行里通常只有数字指标（tokens / 延迟 / 次数），没有可判断的内容，
      * 因此按 (agentId, sessionId, turnId) 现查该 turn 的用户输入与事件摘要喂给 laya；
      * 查不到内容的候选直接保留（不猜）。同一个 turn 在一次请求内只查一次。
+     *
+     * <p>类目间并行（十万级压测后改，2026-10-12）：每类内部已并行送检，类目串行仍会
+     * 把总耗时乘上类目数；这里把各类目的 filter 也并发发出去，同一实现在请求内的
+     * 总耗时压到约一轮 LLM 往返。每个任务只写自己那个 problem，turnCtx 用并发缓存。
      */
     private List<Map<String, Object>> semanticFilterProblems(List<Map<String, Object>> problems) {
         ConfirmKind kind = ConfirmKind.PROBLEM;
-        Map<String, Map<String, String>> turnCtx = new HashMap<>();
+        Map<String, Map<String, String>> turnCtx = new ConcurrentHashMap<>();
+        List<CompletableFuture<Void>> tasks = new ArrayList<>();
         for (Map<String, Object> p : problems) {
             Object raw = p.get("hits");
             if (!(raw instanceof List<?> list) || list.isEmpty()) {
@@ -194,12 +213,17 @@ public class AnalyticsProblemService {
             List<Map<String, Object>> hits = (List<Map<String, Object>>) list;
             String key = text(p.get("key"));
             String threshold = text(p.get("threshold"));
-            var outcome = semanticFilter.filter(hits, kind,
-                    hit -> problemState(hit, key, threshold, turnCtx));
-            p.put("hits", outcome.hits());
-            p.put("hitCount", outcome.hits().size());
-            p.put("semantic", outcome.meta(kind));
+            tasks.add(CompletableFuture.runAsync(() -> {
+                var outcome = semanticFilter.filter(hits, kind,
+                        hit -> problemState(hit, key, threshold, turnCtx));
+                synchronized (p) {
+                    p.put("hits", outcome.hits());
+                    p.put("hitCount", outcome.hits().size());
+                    p.put("semantic", outcome.meta(kind));
+                }
+            }, PROBLEM_FILTER_POOL));
         }
+        CompletableFuture.allOf(tasks.toArray(CompletableFuture[]::new)).join();
         return problems;
     }
 

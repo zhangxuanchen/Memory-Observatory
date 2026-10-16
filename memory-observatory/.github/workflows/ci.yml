@@ -1,0 +1,48 @@
+# CI 守门（2026-10-12 建立）：把「人肉记得跑」的守则测试升级为「每次 push 强制跑」。
+# 与本地 scripts/ci-check.sh 同构——本地离线版多一步 -o（离线）与可选 --docker。
+# 三个 job 各自独立：Java 全量测试 / Python 采集层测试（契约棘轮 S1 的 Python 侧）/
+# 镜像构建冒烟（护住 §7.1 起两服务根上下文的 Dockerfile——改坏构建链会在这里红）。
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# 同一分支的新推送作废旧的在跑任务，省 runner
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  java-test:
+    name: Java 全模块测试（含 S1/S2/S3 守则）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+      # 根聚合 reactor 覆盖 mo-contract/workbench/support/server/exoskeleton，
+      # 守则测试（DependencyDirection/TableOwnership/Vocabulary）随各模块 test 阶段执行
+      - run: mvn -B test
+
+  python-test:
+    name: 采集层测试（契约 + 解析器）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # 纯 stdlib unittest，零第三方依赖；-t . 保证仓库根在 sys.path 上
+      - run: python3 -m unittest discover -s mo_ingest/tests -t . -v
+
+  docker-build:
+    name: 镜像构建冒烟（mo-server + mo-exoskeleton）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # 只验证多阶段构建链（根上下文 -pl -am）能出 jar，不启动、不推送
+      - run: docker compose build mo-server mo-exoskeleton

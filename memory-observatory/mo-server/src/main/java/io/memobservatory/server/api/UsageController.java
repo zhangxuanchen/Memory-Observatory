@@ -2,8 +2,8 @@ package io.memobservatory.server.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import io.memobservatory.agentloop.workbench.core.AgentProperties;
-import io.memobservatory.agentloop.workbench.core.GlobalKeyStore;
+import io.memobservatory.contract.GlobalKeyPort;
+import io.memobservatory.contract.LlmCredentialPort;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellType;
 import org.apache.poi.ss.usermodel.DateUtil;
@@ -67,7 +67,8 @@ public class UsageController {
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
-    private final AgentProperties agentProps;
+    private final LlmCredentialPort llmCredentials;
+    private final GlobalKeyPort globalKeys;
 
     /** 六个目标字段的键名，顺序与 int[] 映射下标一致。 */
     private static final String[] FIELD_KEYS = {"requestId", "credits", "prompt", "model", "client", "time"};
@@ -85,10 +86,12 @@ public class UsageController {
     @Value("${mo.usage.spike-min-credits:50}")
     private double spikeMinCredits;
 
-    public UsageController(JdbcTemplate jdbc, ObjectMapper objectMapper, AgentProperties agentProps) {
+    public UsageController(JdbcTemplate jdbc, ObjectMapper objectMapper,
+                           LlmCredentialPort llmCredentials, GlobalKeyPort globalKeys) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
-        this.agentProps = agentProps;
+        this.llmCredentials = llmCredentials;
+        this.globalKeys = globalKeys;
     }
 
     // ==================== 导入 ====================
@@ -433,11 +436,11 @@ public class UsageController {
      */
     private int[] aiGuessMapping(String[] header, List<List<String>> sample) {
         try {
-            // 取钥优先级：界面配置（GlobalKeyStore）→ 环境变量/兜底文件（agentProps），与用量大模型格式化一致
-            String key = GlobalKeyStore.plain("dashscope");
-            if (key == null || key.isBlank()) key = agentProps.getDashscopeApiKey();
+            // 取钥优先级：界面配置（GlobalKeyPort）→ 环境变量/兜底文件（LlmCredentialPort），与用量大模型格式化一致
+            String key = globalKeys.plain("dashscope");
+            if (key == null || key.isBlank()) key = llmCredentials.getDashscopeApiKey();
             if (key == null || key.isBlank()) return null;
-            String model = agentProps.getDashscopeModel();
+            String model = llmCredentials.getDashscopeModel();
 
             String sys = "你是 Excel 列映射识别助手。用户会给出一份用量明细表的表头和几行样例数据，"
                     + "表格对应以下六个字段：requestId(请求唯一编号/流水号)、credits(积分消耗/费用数值)、"
